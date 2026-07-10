@@ -9,47 +9,47 @@ Payment Entry (Receive від Customer) + оплати в POS-рахунках (
 from datetime import date
 
 import frappe
+from frappe.query_builder.functions import Sum
 
 ALERT_THRESHOLDS = (80, 95, 100)
+
+
+def _sum_payment_entries(company: str, payment_type: str, amount_field: str, start: date, end: date) -> float:
+	pe = frappe.qb.DocType("Payment Entry")
+	result = (
+		frappe.qb.from_(pe)
+		.select(Sum(pe[amount_field]))
+		.where(
+			(pe.company == company)
+			& (pe.payment_type == payment_type)
+			& (pe.party_type == "Customer")
+			& (pe.docstatus == 1)
+			& (pe.posting_date >= start)
+			& (pe.posting_date <= end)
+		)
+	).run()
+	return result[0][0] or 0
 
 
 def get_year_income(company: str, year: int) -> dict:
 	start, end = date(year, 1, 1), date(year, 12, 31)
 
-	received = frappe.db.get_value(
-		"Payment Entry",
-		{
-			"company": company,
-			"payment_type": "Receive",
-			"party_type": "Customer",
-			"docstatus": 1,
-			"posting_date": ("between", (start, end)),
-		},
-		"sum(base_received_amount)",
-	) or 0
+	received = _sum_payment_entries(company, "Receive", "base_received_amount", start, end)
+	refunded = _sum_payment_entries(company, "Pay", "base_paid_amount", start, end)
 
-	refunded = frappe.db.get_value(
-		"Payment Entry",
-		{
-			"company": company,
-			"payment_type": "Pay",
-			"party_type": "Customer",
-			"docstatus": 1,
-			"posting_date": ("between", (start, end)),
-		},
-		"sum(base_paid_amount)",
-	) or 0
-
-	pos_paid = frappe.db.get_value(
-		"Sales Invoice",
-		{
-			"company": company,
-			"is_pos": 1,
-			"docstatus": 1,
-			"posting_date": ("between", (start, end)),
-		},
-		"sum(base_paid_amount)",
-	) or 0
+	si = frappe.qb.DocType("Sales Invoice")
+	pos_result = (
+		frappe.qb.from_(si)
+		.select(Sum(si.base_paid_amount))
+		.where(
+			(si.company == company)
+			& (si.is_pos == 1)
+			& (si.docstatus == 1)
+			& (si.posting_date >= start)
+			& (si.posting_date <= end)
+		)
+	).run()
+	pos_paid = pos_result[0][0] or 0
 
 	return {
 		"received": received,
