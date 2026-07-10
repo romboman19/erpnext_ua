@@ -6,6 +6,8 @@ app_email = "it@hunter.rv.ua"
 app_license = "MIT"
 required_apps = ["erpnext"]
 
+after_install = "erpnext_ua.install.ensure_tax_parameters"
+
 after_migrate = [
     "erpnext_ua.install.ensure_tax_parameters",
 ]
