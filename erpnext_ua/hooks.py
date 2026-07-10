@@ -9,3 +9,13 @@ required_apps = ["erpnext"]
 after_migrate = [
     "erpnext_ua.install.ensure_tax_parameters",
 ]
+
+scheduler_events = {
+    "daily": [
+        "erpnext_ua.ua_fop.tax_calendar.update_statuses_and_notify",
+        "erpnext_ua.ua_fop.income_monitor.check_income_limits",
+    ],
+    "monthly": [
+        "erpnext_ua.ua_fop.tax_calendar.generate_for_all_fops",
+    ],
+}

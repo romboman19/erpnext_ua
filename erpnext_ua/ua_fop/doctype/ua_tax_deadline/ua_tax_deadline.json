@@ -1,0 +1,156 @@
+{
+ "actions": [],
+ "autoname": "format:{company} · {tax_type} · {period_label}",
+ "creation": "2026-07-10 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "fop_profile",
+  "tax_type",
+  "column_break_main",
+  "period_label",
+  "due_date",
+  "status",
+  "section_amount",
+  "amount",
+  "column_break_amount",
+  "notes",
+  "section_flags",
+  "notified_due_soon",
+  "notified_overdue"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Компанія (ФОП)",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "fop_profile",
+   "fieldtype": "Link",
+   "label": "Профіль ФОП",
+   "options": "FOP Profile",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tax_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Тип платежу/звіту",
+   "options": "Єдиний податок\nВійськовий збір\nЄСВ\nДекларація ЄП",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "period_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Період",
+   "reqd": 1
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Граничний строк",
+   "reqd": 1
+  },
+  {
+   "default": "Заплановано",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Статус",
+   "options": "Заплановано\nСкоро термін\nПрострочено\nВиконано"
+  },
+  {
+   "fieldname": "section_amount",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Сума, грн"
+  },
+  {
+   "fieldname": "column_break_amount",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Примітки"
+  },
+  {
+   "fieldname": "section_flags",
+   "fieldtype": "Section Break",
+   "hidden": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "notified_due_soon",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Нагадування надіслано"
+  },
+  {
+   "default": "0",
+   "fieldname": "notified_overdue",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Сповіщення про прострочення надіслано"
+  }
+ ],
+ "links": [],
+ "modified": "2026-07-10 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "UA FOP",
+ "name": "UA Tax Deadline",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "write": 1
+  }
+ ],
+ "sort_field": "due_date",
+ "sort_order": "ASC",
+ "states": []
+}

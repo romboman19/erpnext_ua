@@ -26,7 +26,10 @@
   "kved_main_title",
   "kveds",
   "section_address",
-  "registration_address"
+  "registration_address",
+  "section_alerts",
+  "limit_alert_year",
+  "limit_alert_level"
  ],
  "fields": [
   {
@@ -160,6 +163,23 @@
    "fieldname": "registration_address",
    "fieldtype": "Small Text",
    "label": "Адреса реєстрації (податкова адреса)"
+  },
+  {
+   "fieldname": "section_alerts",
+   "fieldtype": "Section Break",
+   "hidden": 1
+  },
+  {
+   "fieldname": "limit_alert_year",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Рік останнього алерту ліміту"
+  },
+  {
+   "fieldname": "limit_alert_level",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Останній поріг алерту, %"
   }
  ],
  "links": [
