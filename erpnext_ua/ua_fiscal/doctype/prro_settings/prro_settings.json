@@ -43,13 +43,14 @@
    "label": "Фіскальний сервер ДПС"
   },
   {
-   "default": "http://fs.tax.gov.ua:8609/fs",
+   "default": "https://fs.tax.gov.ua:8643/fs",
    "fieldname": "fiscal_server_url",
    "fieldtype": "Data",
    "label": "URL (бойовий)"
   },
   {
-   "default": "http://80.91.165.208:8609/fs",
+   "default": "https://cabinet.tax.gov.ua:9443/fs",
+   "description": "Тестовий АРІ фіскального сервера для розробників (чеки нефіскальні)",
    "fieldname": "fiscal_server_test_url",
    "fieldtype": "Data",
    "label": "URL (тестовий)"
