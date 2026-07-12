@@ -1,0 +1,12 @@
+{
+ "doctype": "DocType", "name": "PB POS Settings", "module": "UA POS", "issingle": 1,
+ "field_order": ["enabled", "gateway_url", "api_key", "request_timeout_sec"],
+ "fields": [
+  {"fieldname": "enabled", "fieldtype": "Check", "label": "Enabled", "default": "0"},
+  {"fieldname": "gateway_url", "fieldtype": "Data", "label": "Gateway URL", "depends_on": "enabled"},
+  {"fieldname": "api_key", "fieldtype": "Password", "label": "API Key", "depends_on": "enabled"},
+  {"fieldname": "request_timeout_sec", "fieldtype": "Int", "label": "Timeout (seconds)", "default": "20"}
+ ],
+ "permissions": [{"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1}]
+}
+

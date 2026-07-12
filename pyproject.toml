@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "erpnext_ua"
 version = "0.2.0"
-description = "ERPNext Ukraine localization: FOP profiles, tax parameters, print formats, translations"
+description = "ERPNext Ukraine business layer: FOP, cash desk/POS, PRRO, tax controls, documents and translations"
 requires-python = ">=3.11"
 readme = "README.md"
 

@@ -1,4 +1,4 @@
-# UA POS — проєктна документація (етап 1: архітектура, без коду)
+# UA POS — архітектура та реалізація
 
 Модуль POS для українського роздрібу: мультиФОП, управлінська каса, власний ПРРО (API ДПС).
 Цільова платформа: **Frappe 16.25 / ERPNext 16.26** (прод erp.huntervua.pp.ua, docker compose, кастомний образ `erpnext-huntervua`).
@@ -23,7 +23,8 @@
 ## Ключові архітектурні рішення (TL;DR)
 
 1. **POS живе в `erpnext_ua`** як новий модуль `ua_pos` (поряд з `ua_fop`, `ua_fiscal`).
-   Термінали/SMS/банки лишаються в `ukrainian_integrations` і викликаються через адаптери.
+   Банківські касові термінали також належать `ua_pos`, бо є частиною checkout-saga.
+   SMS, банківські виписки, онлайн-еквайринг і доставка лишаються в `ukrainian_integrations`.
    Ядро ERPNext не змінюється: тільки DocType, custom fields (fixtures), hooks, whitelisted API, власна сторінка.
 2. **Обліковий документ продажу — стандартний Sales Invoice** (`is_pos=1`, `update_stock=1`),
    створюється сервером. Стандартні POS Invoice / point-of-sale UI / POS Opening/Closing Entry **не використовуються**
@@ -38,8 +39,8 @@
    незалежна від фіскальних змін; одна управлінська зміна ↔ N `PRRO Shift` (по ФОП × ПРРО).
 6. **Фіскалізація — існуючий `ua_fiscal`** (fiscal_client → API ДПС + prro-signer), обгорнутий
    абстрактним `FiscalAdapter`; `PRRO Receipt` розширюється до повноцінного журналу фіскальних операцій з ідемпотентністю.
-7. **Термінал — `TerminalAdapter`** поверх існуючого privat_pos (pb-pos-gateway). Обов'язкова доробка
-   gateway: запит статусу за `operation_id` (зараз відсутній — без нього не закрити сценарій `unknown`).
+7. **Термінал — `TerminalAdapter` у `ua_pos`** поверх pb-pos-gateway. Адаптер передає
+   `operation_id`, не повторює `sale` після timeout і виходить з `unknown` лише через `/status`.
 8. **Друк чеків — server-side** на мережеві ESC/POS принтери (TCP 9100) через чергу `POS Print Job`;
    локальний hardware-agent — запасний варіант, якщо принтери виявляться USB-only (blocking question).
 9. **UI — власна повноекранна сторінка `/pos`** (Vue 3, бандл в апці, esbuild), desktop-first,
@@ -53,6 +54,11 @@
 (агент не потрібен); «кредит» = банк-розстрочка з ручною відміткою (власний workflow вилучено);
 сертифікати не фіскалізуються (фаза 7). Відкритих залежностей для старту немає.
 
-**Наступний крок — етап 0**: тестовий site + e2e-спайк фіскалізації на тестовому API ДПС
-(перевірка CAdES-T/TSP — головний технічний ризик). Код продукту не пишемо, доки спайк не зніме
-невизначеність по протоколу.
+## Поточний стан
+
+- Етап 0 виконано; CAdES-T/TSP реалізовано в signer.
+- Реалізовано backend-каркас етапів 1–4: каси й допуски, зміни, перерахунок,
+  cash ledger, POS Order, payment attempts, terminal transactions, checkout до Sales Invoice
+  та передача у ПРРО.
+- До production gate лишаються повний POS UI, повернення, друк/звіти, мульти-ФОП routing,
+  offline recovery та прогін 36 acceptance-сценаріїв на staging/пілоті.

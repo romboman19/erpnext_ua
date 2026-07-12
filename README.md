@@ -1,6 +1,12 @@
-# ERPNext Ukraine (erpnext_ua)
+# ERPNext Ukraine
 
-Українська локалізація ERPNext: ФОП-профілі, податкові параметри, друковані форми, переклади.
+Український бізнес-шар для ERPNext: облік ФОП, управлінська каса/POS, ПРРО,
+податковий контроль, українські документи та переклади. Це не форк ERPNext:
+застосунок розширює стандартні `Sales Invoice`, склад, платежі й довідники через
+DocType, hooks та API.
+
+Репозиторій: `erpnext_ukraine`. Технічне ім'я Frappe app навмисно лишається
+`erpnext_ua`, щоб не ламати наявні сайти та міграції.
 
 ## Модулі
 
@@ -27,22 +33,48 @@
 
 Форми підтягують реквізити постачальника з FOP Profile компанії документа.
 
+### UA Fiscal (ПРРО)
+
+- каси й зміни ПРРО, чеки продажу/повернення та Z-звіти;
+- REST-транспорт до ЄВПЕЗ ДПС, XML за схемами ДПС, офлайн-пакети;
+- підпис через окремий `erpnext_ukraine_prro_signer` (ДСТУ-4145/CAdES-T);
+- зв'язок фіскального чека зі стандартним Sales Invoice.
+
+### UA POS (каса)
+
+- фізичні каси, допуски працівників і операційні зміни;
+- покупюрний перерахунок і незмінний журнал рухів готівки;
+- barcode-first кошик `POS Order`, ідемпотентний checkout і Sales Invoice;
+- готівкова, карткова та змішана оплата;
+- вбудований адаптер банківських POS-терміналів через `pb-pos-gateway`;
+- відновлення невизначених карткових операцій через `operation_id`/status;
+- фіскалізація через UA Fiscal.
+
+Архітектура, стани та acceptance-сценарії: [docs/pos/README.md](docs/pos/README.md).
+
 ## Сумісність
 - Frappe / ERPNext v16
 - Python 3.11+
 
 ## Встановлення
 ```bash
-bench get-app https://github.com/romboman19/erpnext_ua
+bench get-app https://github.com/romboman19/erpnext_ukraine
 bench --site <site> install-app erpnext_ua
 bench --site <site> migrate
 ```
 
-## Roadmap
-- ПРРО / фіскалізація (чеки, зміни, Z-звіти, офлайн-черга)
-- Податковий календар і контроль лімітів доходу
-- Мульти-ФОП owner attribution для спільного магазину
-- ПДВ/ЄРПН контур для ФОП 3 групи зі ставкою 3%
+## Межі відповідальності
 
-Інтеграції (Нова Пошта, банки, LiqPay, POS) — в окремій app
-[erpnext_ukrainian_integrations](https://github.com/romboman19/erpnext_ukrainian_integrations).
+- Тут: ФОП, каса/POS, банківські термінали в касовому checkout, ПРРО та український compliance.
+- У [`erpnext_ukraine_integrations`](https://github.com/romboman19/erpnext_ukraine_integrations):
+  зовнішні бізнес-конектори — перевізники, банківські виписки, онлайн-еквайринг,
+  маркетплейси, PBX і SMS.
+- В [`erpnext_ukraine_prro_signer`](https://github.com/romboman19/erpnext_ukraine_prro_signer):
+  ізольований headless-сервіс криптографічного підпису.
+
+## Ще в роботі
+
+- production hardening повного POS acceptance-набору;
+- автоматична мульти-ФОП маршрутизація та контроль лімітів за Z-звітами;
+- фіскальна офлайн-черга з автоматичним відновленням;
+- ПДВ/ЄРПН-контур для ФОП 3 групи зі ставкою 3%.

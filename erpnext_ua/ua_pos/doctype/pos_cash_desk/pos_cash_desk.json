@@ -1,0 +1,20 @@
+{
+ "doctype":"DocType","name":"POS Cash Desk","module":"UA POS","autoname":"field:desk_name","title_field":"desk_name",
+ "field_order":["desk_name","status","company","warehouse","default_customer","terminal","prro_cash_register","default_kep_key","receipt_printer_host","receipt_printer_port"],
+ "fields":[
+  {"fieldname":"desk_name","fieldtype":"Data","label":"Cash Desk","reqd":1,"unique":1},
+  {"fieldname":"status","fieldtype":"Select","label":"Status","options":"Active\nInactive","default":"Active","reqd":1},
+  {"fieldname":"company","fieldtype":"Link","label":"Company","options":"Company","reqd":1},
+  {"fieldname":"warehouse","fieldtype":"Link","label":"Warehouse","options":"Warehouse","reqd":1},
+  {"fieldname":"default_customer","fieldtype":"Link","label":"Default Customer","options":"Customer","reqd":1},
+  {"fieldname":"terminal","fieldtype":"Link","label":"Bank Terminal","options":"PB POS Terminal"},
+  {"fieldname":"prro_cash_register","fieldtype":"Link","label":"PRRO Cash Register","options":"PRRO Cash Register"},
+  {"fieldname":"default_kep_key","fieldtype":"Link","label":"Default KEP Key","options":"UA KEP Key"},
+  {"fieldname":"receipt_printer_host","fieldtype":"Data","label":"Receipt Printer Host"},
+  {"fieldname":"receipt_printer_port","fieldtype":"Int","label":"Receipt Printer Port","default":"9100"}
+ ],
+ "permissions":[
+  {"role":"POS Administrator","read":1,"write":1,"create":1},
+  {"role":"POS Cashier","read":1},{"role":"System Manager","read":1,"write":1,"create":1,"delete":1}
+ ]
+}

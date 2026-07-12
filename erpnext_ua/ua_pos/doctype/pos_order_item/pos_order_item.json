@@ -1,0 +1,18 @@
+{
+ "doctype":"DocType","name":"POS Order Item","module":"UA POS","istable":1,
+ "field_order":["item_code","item_name","barcode","qty","uom","rate","amount","warehouse","batch_no","serial_no","discount_amount","fop_profile"],
+ "fields":[
+  {"fieldname":"item_code","fieldtype":"Link","label":"Item","options":"Item","reqd":1},
+  {"fieldname":"item_name","fieldtype":"Data","label":"Item Name","read_only":1},
+  {"fieldname":"barcode","fieldtype":"Data","label":"Scanned Barcode","read_only":1},
+  {"fieldname":"qty","fieldtype":"Float","label":"Quantity","default":"1","reqd":1},
+  {"fieldname":"uom","fieldtype":"Link","label":"UOM","options":"UOM","reqd":1},
+  {"fieldname":"rate","fieldtype":"Currency","label":"Rate","reqd":1},
+  {"fieldname":"amount","fieldtype":"Currency","label":"Amount","read_only":1},
+  {"fieldname":"warehouse","fieldtype":"Link","label":"Warehouse","options":"Warehouse","reqd":1},
+  {"fieldname":"batch_no","fieldtype":"Link","label":"Batch","options":"Batch"},
+  {"fieldname":"serial_no","fieldtype":"Small Text","label":"Serial Numbers"},
+  {"fieldname":"discount_amount","fieldtype":"Currency","label":"Discount Amount","default":"0"},
+  {"fieldname":"fop_profile","fieldtype":"Link","label":"FOP Profile","options":"FOP Profile"}
+ ]
+}

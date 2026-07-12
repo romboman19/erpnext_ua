@@ -1,0 +1,16 @@
+{
+ "doctype": "DocType", "name": "PB POS Terminal", "module": "UA POS", "autoname": "field:terminal_name",
+ "title_field": "terminal_name", "search_fields": "terminal_name,ip_address",
+ "field_order": ["terminal_name", "is_active", "ip_address", "tcp_port", "cash_desk"],
+ "fields": [
+  {"fieldname": "terminal_name", "fieldtype": "Data", "label": "Terminal Name", "reqd": 1, "unique": 1},
+  {"fieldname": "is_active", "fieldtype": "Check", "label": "Active", "default": "1"},
+  {"fieldname": "ip_address", "fieldtype": "Data", "label": "IP Address", "reqd": 1},
+  {"fieldname": "tcp_port", "fieldtype": "Int", "label": "TCP Port", "default": "2000"},
+  {"fieldname": "cash_desk", "fieldtype": "Link", "label": "POS Cash Desk", "options": "POS Cash Desk"}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+  {"role": "Accounts Manager", "read": 1}
+ ]
+}

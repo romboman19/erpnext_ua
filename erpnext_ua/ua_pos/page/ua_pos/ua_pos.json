@@ -1,0 +1,4 @@
+{
+ "doctype":"Page","name":"ua-pos","page_name":"ua-pos","module":"UA POS","standard":"Yes","title":"UA POS",
+ "roles":[{"role":"POS Cashier"},{"role":"POS Senior Cashier"},{"role":"POS Manager"},{"role":"POS Administrator"},{"role":"System Manager"}]
+}

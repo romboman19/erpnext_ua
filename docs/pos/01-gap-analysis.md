@@ -69,8 +69,8 @@ POS Invoice додатково має ризик: у roadmap ERPNext він по
 | ПРРО-клієнт ДПС (`/cmd`, `/doc`, `/pck`) | `ua_fiscal/fiscal_client.py` | ✅ транспорт+підпис готові |
 | XML check01 (продаж, службові, офлайн) | `ua_fiscal/xml_builder.py` | ✅ база є; додати знижки (DISCOUNTSUM), решту, часткове повернення |
 | PRRO Cash Register / Shift / Receipt / Settings / UA KEP Key | `ua_fiscal/doctype` | ✅ каркас є; розширення описані в 03 |
-| Підпис ДСТУ-4145 (CMS/CAdES) | `prro-signer` (Node, jkurwa) | ✅ готово; перевірити CAdES-T (TSP) для онлайн-режиму |
-| Банківський термінал ПБ | `ukrainian_integrations/payments/privat_pos` + `pb-pos-gateway` (Go) | ⚠️ працює для разових оплат з Sales Invoice; для POS бракує: status за operation_id, ідемпотентності на legacy `/purchase`, void |
+| Підпис ДСТУ-4145 (CMS/CAdES) | `erpnext_ukraine_prro_signer` (Node, jkurwa) | ✅ CAdES-T/TSP для online та BES для offline |
+| Банківський термінал ПБ | `erpnext_ua/ua_pos/adapters/terminal.py` + `pb-pos-gateway` | ✅ адаптер перенесено до каси; gateway має підтримувати status/void та idempotency за operation_id |
 | Друкформи UA (рахунок, накладна, акт) | `erpnext_ua/ua_fop/print_format` | ✅ використовуються для офісного друку |
 | SMS (TurboSMS), дзвінки (VitalPBX), банки (mono/PB API) | `ukrainian_integrations` | ✅ канали для ідентифікації клієнта та IBAN-звірки |
 | Журнал інтеграцій | Hunter Integration Log | ✅ для технічного логування адаптерів |

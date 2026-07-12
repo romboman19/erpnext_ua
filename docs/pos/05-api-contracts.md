@@ -75,8 +75,8 @@ FiscalDocResult:
 
 ## 2. Terminal Adapter (Python, `ua_pos/adapters/terminal.py`)
 
-Реалізація фази 1 — `PrivatPosAdapter` поверх `ukrainian_integrations.payments.privat_pos`
-(gateway `pb-pos-gateway`).
+Реалізація — `PrivatPosAdapter` безпосередньо у `erpnext_ua.ua_pos.adapters.terminal`
+(gateway `pb-pos-gateway`). Так касова транзакція, її стан та recovery версіюються атомарно.
 
 ```python
 class TerminalAdapter(ABC):

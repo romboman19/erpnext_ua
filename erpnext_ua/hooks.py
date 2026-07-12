@@ -1,19 +1,24 @@
 app_name = "erpnext_ua"
 app_title = "ERPNext Ukraine"
 app_publisher = "HUNTER.rv"
-app_description = "Ukrainian localization for ERPNext: FOP profiles, tax parameters, print formats, translations"
+app_description = "Ukraine business layer for ERPNext: FOP, cash desk/POS, PRRO, tax controls and documents"
 app_email = "it@hunter.rv.ua"
 app_license = "MIT"
 required_apps = ["erpnext"]
 
-after_install = "erpnext_ua.install.ensure_tax_parameters"
+after_install = [
+    "erpnext_ua.install.ensure_tax_parameters",
+    "erpnext_ua.install.ensure_pos_setup",
+]
 
 after_migrate = [
     "erpnext_ua.install.ensure_tax_parameters",
+    "erpnext_ua.install.ensure_pos_setup",
 ]
 
 doctype_js = {
     "Sales Invoice": "ua_fiscal/doctype_js/sales_invoice_fiscal.js",
+    "PB POS Terminal": "ua_pos/public/js/pb_pos_terminal.js",
 }
 
 doc_events = {

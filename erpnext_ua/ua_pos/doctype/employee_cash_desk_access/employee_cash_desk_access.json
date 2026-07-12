@@ -1,0 +1,13 @@
+{
+ "doctype":"DocType","name":"Employee Cash Desk Access","module":"UA POS","autoname":"format:{employee}-{cash_desk}",
+ "field_order":["employee","cash_desk","access_role","active","valid_from","valid_to"],
+ "fields":[
+  {"fieldname":"employee","fieldtype":"Link","label":"Employee","options":"Employee","reqd":1},
+  {"fieldname":"cash_desk","fieldtype":"Link","label":"Cash Desk","options":"POS Cash Desk","reqd":1},
+  {"fieldname":"access_role","fieldtype":"Select","label":"Role","options":"Cashier\nSenior Cashier\nManager","default":"Cashier","reqd":1},
+  {"fieldname":"active","fieldtype":"Check","label":"Active","default":"1"},
+  {"fieldname":"valid_from","fieldtype":"Date","label":"Valid From"},
+  {"fieldname":"valid_to","fieldtype":"Date","label":"Valid To"}
+ ],
+ "permissions":[{"role":"POS Administrator","read":1,"write":1,"create":1,"delete":1},{"role":"System Manager","read":1,"write":1,"create":1,"delete":1}]
+}
