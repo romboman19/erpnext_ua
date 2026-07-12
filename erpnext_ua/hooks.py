@@ -12,6 +12,16 @@ after_migrate = [
     "erpnext_ua.install.ensure_tax_parameters",
 ]
 
+doctype_js = {
+    "Sales Invoice": "ua_fiscal/doctype_js/sales_invoice_fiscal.js",
+}
+
+doc_events = {
+    "Sales Invoice": {
+        "on_submit": "erpnext_ua.ua_fiscal.sales_invoice.on_submit",
+    },
+}
+
 scheduler_events = {
     "daily": [
         "erpnext_ua.ua_fop.tax_calendar.update_statuses_and_notify",
