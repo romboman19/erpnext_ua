@@ -4,6 +4,7 @@ import json
 import secrets
 import uuid
 from collections import defaultdict
+from datetime import date
 
 import frappe
 from frappe import _
@@ -160,7 +161,7 @@ def stock_search(pos_session_token: str, query: str, limit: int = 30) -> list[di
 	like = f"%{query}%"
 	rows = frappe.db.sql(
 		"""select i.name as item_code, i.item_name, i.stock_uom as uom,
-			coalesce(b.actual_qty, 0) as actual_qty,
+			i.image, coalesce(b.actual_qty, 0) as actual_qty,
 			(select ib.barcode from `tabItem Barcode` ib where ib.parent=i.name order by ib.idx limit 1) as barcode
 		from `tabItem` i
 		left join `tabBin` b on b.item_code=i.name and b.warehouse=%s
@@ -488,7 +489,7 @@ def scan_item(pos_session_token: str, order: str, query: str, qty: float = 1) ->
 	item = frappe.db.get_value(
 		"Item",
 		item_code,
-		["item_name", "stock_uom", "disabled", "is_stock_item", "has_batch_no", "has_serial_no"],
+		["item_name", "image", "stock_uom", "disabled", "is_stock_item", "has_batch_no", "has_serial_no"],
 		as_dict=True,
 	)
 	if item.disabled:
@@ -500,6 +501,8 @@ def scan_item(pos_session_token: str, order: str, query: str, qty: float = 1) ->
 	for row in doc.items:
 		if row.item_code == item_code and not row.serial_no and not row.batch_no:
 			row.qty += qty
+			if int(doc.birthday_benefit_year or 0):
+				_allocate_order_discount(doc, discount_percent=doc.birthday_discount_percent)
 			doc.save(ignore_permissions=True)
 			return doc.as_dict()
 	doc.append(
@@ -507,6 +510,7 @@ def scan_item(pos_session_token: str, order: str, query: str, qty: float = 1) ->
 		{
 			"item_code": item_code,
 			"item_name": item.item_name,
+			"image": item.image,
 			"barcode": barcode,
 			"qty": qty,
 			"uom": item.stock_uom,
@@ -514,7 +518,107 @@ def scan_item(pos_session_token: str, order: str, query: str, qty: float = 1) ->
 			"warehouse": desk.warehouse,
 		},
 	)
+	if int(doc.birthday_benefit_year or 0):
+		_allocate_order_discount(doc, discount_percent=doc.birthday_discount_percent)
 	doc.save(ignore_permissions=True)
+	return doc.as_dict()
+
+
+def _birthday_occurrence(birth_date, year: int) -> date:
+	birth_date = frappe.utils.getdate(birth_date)
+	try:
+		return birth_date.replace(year=year)
+	except ValueError:
+		return date(year, 2, 28)
+
+
+def _birthday_window(birth_date, days_before: int, days_after: int, today=None):
+	today = frappe.utils.getdate(today or frappe.utils.today())
+	for year in (today.year - 1, today.year, today.year + 1):
+		birthday = _birthday_occurrence(birth_date, year)
+		valid_from = frappe.utils.add_days(birthday, -max(0, int(days_before or 0)))
+		valid_until = frappe.utils.add_days(birthday, max(0, int(days_after or 0)))
+		if frappe.utils.getdate(valid_from) <= today <= frappe.utils.getdate(valid_until):
+			return {
+				"benefit_year": year,
+				"birthday": birthday,
+				"valid_from": frappe.utils.getdate(valid_from),
+				"valid_until": frappe.utils.getdate(valid_until),
+				"age": year - frappe.utils.getdate(birth_date).year,
+			}
+	return None
+
+
+@frappe.whitelist()
+def birthday_offer(pos_session_token: str, customer: str, order: str | None = None) -> dict:
+	session = get_session(pos_session_token)
+	settings = frappe.get_cached_doc("POS Birthday Settings")
+	if not settings.enabled:
+		return {"eligible": False, "reason": _("Політику дня народження вимкнено")}
+	if not frappe.db.exists("Customer", customer):
+		return {"eligible": False, "reason": _("Покупця не знайдено")}
+	row = frappe.db.get_value(
+		"Customer",
+		customer,
+		["name", "customer_name", "customer_group", "ua_first_name", "ua_date_of_birth"],
+		as_dict=True,
+	)
+	if not row.ua_date_of_birth:
+		return {"eligible": False, "reason": _("Для покупця не вказано дату народження")}
+	if settings.eligible_customer_group and row.customer_group != settings.eligible_customer_group:
+		return {"eligible": False, "reason": _("Група покупця не бере участі у програмі")}
+	window = _birthday_window(row.ua_date_of_birth, settings.days_before, settings.days_after)
+	if not window:
+		return {"eligible": False, "reason": _("Сьогодні знижка до дня народження не діє")}
+	if int(settings.min_age or 0) and window["age"] < int(settings.min_age):
+		return {"eligible": False, "reason": _("Вік покупця менший за дозволений")}
+	if int(settings.max_age or 0) and window["age"] > int(settings.max_age):
+		return {"eligible": False, "reason": _("Вік покупця більший за дозволений")}
+	usage_key = f"{customer}:{window['benefit_year']}"
+	if settings.one_time_per_year and frappe.db.exists("POS Birthday Benefit", {"usage_key": usage_key}):
+		return {"eligible": False, "reason": _("Знижку цього року вже використано")}
+	order_total = 0
+	applied = False
+	if order:
+		doc = _owned_order(session, order)
+		if doc.customer != customer:
+			return {"eligible": False, "reason": _("Покупець не відповідає поточному чеку")}
+		order_total = frappe.utils.flt(doc.grand_total)
+		applied = int(doc.birthday_benefit_year or 0) == window["benefit_year"]
+	minimum = frappe.utils.flt(settings.minimum_order_amount)
+	return {
+		"eligible": bool(applied or order_total >= minimum),
+		"minimum_met": bool(order_total >= minimum),
+		"minimum_order_amount": minimum,
+		"customer": row,
+		"discount_percent": frappe.utils.flt(settings.discount_percent),
+		"birthday": str(window["birthday"]),
+		"valid_from": str(window["valid_from"]),
+		"valid_until": str(window["valid_until"]),
+		"benefit_year": window["benefit_year"],
+		"age": window["age"],
+		"applied": applied,
+		"usage_key": usage_key,
+	}
+
+
+@frappe.whitelist()
+def apply_birthday_discount(pos_session_token: str, order: str) -> dict:
+	session = get_session(pos_session_token)
+	doc = _owned_order(session, order, {"Building"})
+	offer = birthday_offer(pos_session_token, doc.customer, doc.name)
+	if not offer.get("eligible"):
+		frappe.throw(offer.get("reason") or _("Знижка до дня народження недоступна"))
+	discounted = set_order_discount(
+		pos_session_token,
+		doc.name,
+		discount_percent=offer["discount_percent"],
+	)
+	doc = frappe.get_doc("POS Order", discounted.name)
+	doc.birthday_benefit_year = offer["benefit_year"]
+	doc.birthday_discount_percent = offer["discount_percent"]
+	doc.save(ignore_permissions=True)
+	audit("birthday_discount_applied", session, (doc.doctype, doc.name), offer)
 	return doc.as_dict()
 
 
@@ -529,6 +633,8 @@ def set_item_qty(pos_session_token: str, order: str, row_name: str, qty: float) 
 		doc.remove(row)
 	else:
 		row.qty = frappe.utils.flt(qty)
+	if int(doc.birthday_benefit_year or 0):
+		_allocate_order_discount(doc, discount_percent=doc.birthday_discount_percent)
 	doc.save(ignore_permissions=True)
 	return doc.as_dict()
 
@@ -548,6 +654,10 @@ def set_order_customer(pos_session_token: str, order: str, customer: str) -> dic
 	doc = _owned_order(session, order, {"Building"})
 	if not frappe.db.exists("Customer", customer):
 		frappe.throw(_("Customer {0} does not exist").format(customer))
+	if doc.customer != customer and int(doc.birthday_benefit_year or 0):
+		_allocate_order_discount(doc)
+		doc.birthday_benefit_year = 0
+		doc.birthday_discount_percent = 0
 	doc.customer = customer
 	doc.save(ignore_permissions=True)
 	return doc.as_dict()
@@ -564,17 +674,7 @@ def set_order_mode(pos_session_token: str, order: str, fiscal_mode: str) -> dict
 	return doc.as_dict()
 
 
-@frappe.whitelist()
-def set_order_discount(
-	pos_session_token: str,
-	order: str,
-	discount_percent: float = 0,
-	discount_amount: float = 0,
-) -> dict:
-	session = get_session(pos_session_token)
-	doc = _owned_order(session, order, {"Building"})
-	if not doc.items:
-		frappe.throw(_("У чеку немає товарів"))
+def _allocate_order_discount(doc, discount_percent: float = 0, discount_amount: float = 0):
 	percent = frappe.utils.flt(discount_percent)
 	amount = frappe.utils.flt(discount_amount, 2)
 	if percent < 0 or percent > 100 or amount < 0:
@@ -591,8 +691,25 @@ def set_order_discount(
 			else frappe.utils.flt(target * gross / gross_total, 2)
 		)
 		allocated += row.discount_amount
+	return target
+
+
+@frappe.whitelist()
+def set_order_discount(
+	pos_session_token: str,
+	order: str,
+	discount_percent: float = 0,
+	discount_amount: float = 0,
+) -> dict:
+	session = get_session(pos_session_token)
+	doc = _owned_order(session, order, {"Building"})
+	if not doc.items:
+		frappe.throw(_("У чеку немає товарів"))
+	target = _allocate_order_discount(doc, discount_percent, discount_amount)
+	doc.birthday_benefit_year = 0
+	doc.birthday_discount_percent = 0
 	doc.save(ignore_permissions=True)
-	audit("order_discount", session, (doc.doctype, doc.name), {"amount": target, "percent": percent})
+	audit("order_discount", session, (doc.doctype, doc.name), {"amount": target, "percent": frappe.utils.flt(discount_percent)})
 	return doc.as_dict()
 
 
@@ -930,6 +1047,7 @@ def create_return_order(pos_session_token: str, token: str, items, idem_key: str
 			{
 				"item_code": original_row.item_code,
 				"item_name": original_row.item_name,
+				"image": original_row.image,
 				"barcode": original_row.barcode,
 				"qty": qty,
 				"uom": original_row.uom,
@@ -958,6 +1076,25 @@ def _validate_return_payments(order, payment_rows: list[dict]):
 			frappe.throw(_("Сума повернення способом {0} перевищує доступний ліміт {1}").format(kind, limits.get(kind, 0)))
 
 
+def _record_birthday_benefit(order):
+	if order.order_type != "Sale" or not int(order.birthday_benefit_year or 0):
+		return
+	usage_key = f"{order.customer}:{int(order.birthday_benefit_year)}"
+	if frappe.db.exists("POS Birthday Benefit", {"usage_key": usage_key}):
+		return
+	frappe.get_doc(
+		{
+			"doctype": "POS Birthday Benefit",
+			"customer": order.customer,
+			"benefit_year": int(order.birthday_benefit_year),
+			"pos_order": order.name,
+			"discount_percent": order.birthday_discount_percent,
+			"used_at": frappe.utils.now_datetime(),
+			"usage_key": usage_key,
+		}
+	).insert(ignore_permissions=True)
+
+
 def _complete_paid_order(doc, desk, session) -> dict:
 	if doc.sales_invoice:
 		return doc.as_dict()
@@ -978,6 +1115,7 @@ def _complete_paid_order(doc, desk, session) -> dict:
 			doc.prro_receipt = receipt
 			doc.status = "Completed"
 		doc.save(ignore_permissions=True)
+		_record_birthday_benefit(doc)
 	except Exception as exc:
 		doc.status = "Manual Review"
 		doc.recovery_note = str(exc)[:500]

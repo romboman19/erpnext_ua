@@ -6,12 +6,41 @@ try {
 
 frappe.pages["ua-pos"].on_page_load = function (wrapper) {
   const page = frappe.ui.make_app_page({ parent: wrapper, title: "Каса", single_column: true });
+  const layoutDefaults = {
+    showImage: true,
+    columns: {
+      item: { visible: true, width: 300 },
+      barcode: { visible: true, width: 130 },
+      qty: { visible: true, width: 125 },
+      uom: { visible: true, width: 65 },
+      rate: { visible: true, width: 100 },
+      discount: { visible: true, width: 90 },
+      amount: { visible: true, width: 110 },
+      tracking: { visible: true, width: 150 },
+      status: { visible: false, width: 105 },
+    },
+  };
+  const loadLayout = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("ua_pos_layout") || "{}");
+      return {
+        showImage: saved.showImage ?? layoutDefaults.showImage,
+        columns: Object.fromEntries(Object.entries(layoutDefaults.columns).map(([key, value]) => [key, { ...value, ...(saved.columns?.[key] || {}) }])),
+      };
+    } catch (error) {
+      console.warn("UA POS layout could not be loaded", error);
+      return JSON.parse(JSON.stringify(layoutDefaults));
+    }
+  };
   const state = {
     token: sessionStorage.getItem("ua_pos_token"),
     session: null,
     order: null,
     saleMode: "Non Fiscal",
     clock: null,
+    layout: loadLayout(),
+    lastItem: null,
+    birthdayPromptKey: null,
   };
   wrapper.uaPosState = state;
 
@@ -49,11 +78,11 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
     .ua-pos{--ink:#172033;--muted:#667085;--line:#dfe4ec;--panel:#fff;--bg:#f3f6fa;--blue:#2563eb;--blue2:#1d4ed8;--green:#079455;--amber:#dc6803;--red:#d92d20;min-height:calc(100vh - 48px);background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
     .ua-pos *{box-sizing:border-box}.ua-pos button,.ua-pos input{font:inherit}.ua-pos-login-screen{min-height:calc(100vh - 48px);display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 15% 10%,#dbeafe 0,transparent 34%),radial-gradient(circle at 85% 85%,#d1fae5 0,transparent 30%),#f8fafc}
     .ua-pos-login-card{width:min(520px,100%);background:#fff;border:1px solid #e4e7ec;border-radius:20px;box-shadow:0 24px 70px rgba(16,24,40,.14);padding:36px}.ua-pos-brand{display:flex;align-items:center;gap:12px}.ua-pos-logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#0f766e);display:grid;place-items:center;color:#fff;font-weight:800;font-size:20px}.ua-pos-brand strong{font-size:20px}.ua-pos-brand small{display:block;color:var(--muted);margin-top:2px}.ua-pos-login-card h1{font-size:27px;margin:32px 0 6px}.ua-pos-login-card>p{color:var(--muted);margin:0 0 24px}.ua-pos-field{margin:14px 0}.ua-pos-field label{display:block;font-weight:650;font-size:13px;margin-bottom:7px}.ua-pos-field input{width:100%;height:48px;border:1px solid #cfd6e2;border-radius:10px;padding:0 14px;outline:0}.ua-pos-field input:focus{border-color:var(--blue);box-shadow:0 0 0 3px #dbeafe}.ua-pos-login-button{width:100%;height:50px;border:0;border-radius:10px;background:var(--blue);color:#fff;font-weight:750;margin-top:10px}.ua-pos-login-note{margin-top:18px;padding:11px 13px;background:#f8fafc;border-radius:9px;color:var(--muted);font-size:12px}
-    .ua-pos-workspace{display:none;min-height:calc(100vh - 48px)}.ua-pos-topbar{height:66px;background:#111827;color:#fff;display:flex;align-items:center;gap:18px;padding:0 20px;position:sticky;top:0;z-index:20}.ua-pos-topbar .ua-pos-brand{min-width:210px}.ua-pos-topbar .ua-pos-logo{width:38px;height:38px;font-size:17px}.ua-pos-topbar .ua-pos-brand strong{font-size:16px}.ua-pos-topbar .ua-pos-brand small{color:#98a2b3}.ua-pos-statuses{display:flex;gap:8px;align-items:center;overflow:hidden;flex:1}.ua-pos-chip{height:34px;display:flex;align-items:center;gap:7px;padding:0 11px;border:1px solid #344054;border-radius:8px;color:#d0d5dd;font-size:12px;white-space:nowrap}.ua-pos-chip b{color:#fff;font-weight:650}.ua-pos-dot{width:8px;height:8px;border-radius:50%;background:#98a2b3}.ua-pos-dot.ok{background:#32d583}.ua-pos-dot.warn{background:#fdb022}.ua-pos-user{display:flex;align-items:center;gap:10px;border-left:1px solid #344054;padding-left:17px;white-space:nowrap}.ua-pos-avatar{width:34px;height:34px;border-radius:50%;background:#344054;display:grid;place-items:center;font-weight:700}.ua-pos-user strong{display:block;font-size:12px}.ua-pos-user span{display:block;font-size:11px;color:#98a2b3}.ua-pos-icon-button{border:0;background:transparent;color:#d0d5dd;font-size:18px;padding:8px}
+    .ua-pos-workspace{display:none;min-height:calc(100vh - 48px)}.ua-pos-topbar{height:54px;background:#111827;color:#fff;display:flex;align-items:center;gap:18px;padding:0 20px;position:sticky;top:0;z-index:20}.ua-pos-topbar .ua-pos-brand{margin-right:auto}.ua-pos-topbar .ua-pos-logo{width:34px;height:34px;font-size:15px}.ua-pos-topbar .ua-pos-brand strong{font-size:16px}.ua-pos-statuses,.ua-pos-user-details{display:none}.ua-pos-chip{height:34px;display:flex;align-items:center;gap:7px;padding:0 11px;border:1px solid #344054;border-radius:8px;color:#d0d5dd;font-size:12px;white-space:nowrap}.ua-pos-chip b{color:#fff;font-weight:650}.ua-pos-dot{width:8px;height:8px;border-radius:50%;background:#98a2b3}.ua-pos-dot.ok{background:#32d583}.ua-pos-dot.warn{background:#fdb022}.ua-pos-top-actions{display:flex;align-items:center;gap:4px}.ua-pos-icon-button{border:0;background:transparent;color:#d0d5dd;font-size:18px;padding:8px;border-radius:7px}.ua-pos-icon-button:hover{background:#344054;color:#fff}
     .ua-pos-command{padding:14px 18px 10px;background:#fff;border-bottom:1px solid var(--line)}.ua-pos-command-top{display:flex;gap:10px;align-items:stretch}.ua-pos-search-wrap{position:relative;flex:1}.ua-pos-search-icon{position:absolute;left:15px;top:13px;font-size:20px;color:var(--blue)}.ua-pos-scan{height:50px;width:100%;border:2px solid #b8c5d8;border-radius:10px;padding:0 135px 0 46px;font-size:17px;font-weight:600;outline:0}.ua-pos-scan:focus{border-color:var(--blue);box-shadow:0 0 0 3px #dbeafe}.ua-pos-keyhint{position:absolute;right:12px;top:12px;border:1px solid #d0d5dd;background:#f9fafb;border-radius:6px;padding:4px 8px;font-size:11px;color:var(--muted)}.ua-pos-mode{display:flex;border:1px solid #d0d5dd;border-radius:10px;padding:4px;background:#f8fafc}.ua-pos-mode button{border:0;background:transparent;border-radius:7px;padding:0 14px;font-size:12px;font-weight:700;color:var(--muted)}.ua-pos-mode button.active{background:#fff;color:var(--blue);box-shadow:0 1px 4px rgba(16,24,40,.12)}.ua-pos-mode button.fiscal.active{color:#b54708;background:#fffaeb}.ua-pos-command-actions{display:flex;gap:7px;margin-top:10px;overflow-x:auto;padding-bottom:1px}.ua-pos-action{height:38px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:0 12px;display:flex;align-items:center;gap:7px;color:#344054;font-size:12px;font-weight:650;white-space:nowrap}.ua-pos-action:hover{background:#f9fafb;border-color:#98a2b3}.ua-pos-action.primary{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}.ua-pos-action.danger{color:#b42318}.ua-pos-action[disabled]{opacity:.45;cursor:not-allowed}.ua-pos-shortcut{font-size:10px;color:#98a2b3;border-left:1px solid #d0d5dd;padding-left:7px}
     .ua-pos-alert{display:none;margin:12px 18px 0;padding:10px 13px;border-radius:8px;background:#fffaeb;border:1px solid #fedf89;color:#93370d;font-size:13px}.ua-pos-main{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;padding:14px 18px 18px;height:calc(100vh - 192px)}.ua-pos-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.04);overflow:hidden}.ua-pos-cart-panel{display:flex;flex-direction:column;min-width:0}.ua-pos-sale-info{min-height:62px;display:flex;align-items:center;gap:22px;padding:9px 14px;border-bottom:1px solid var(--line);background:#fbfcfe}.ua-pos-sale-info-item{min-width:0}.ua-pos-sale-info-item label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.ua-pos-sale-info-item strong{display:block;font-size:13px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ua-pos-customer-button{margin-left:auto;border:1px solid #d0d5dd;border-radius:8px;background:#fff;height:36px;padding:0 12px;color:#344054;font-weight:650;font-size:12px}
-    .ua-pos-table-wrap{flex:1;overflow:auto;position:relative}.ua-pos-table{border-collapse:separate;border-spacing:0;width:100%;min-width:1100px;font-size:12px}.ua-pos-table th{position:sticky;top:0;z-index:2;background:#f2f4f7;color:#475467;text-align:left;padding:9px 10px;border-bottom:1px solid #d0d5dd;font-weight:700;white-space:nowrap}.ua-pos-table td{padding:9px 10px;border-bottom:1px solid #eaecf0;vertical-align:middle}.ua-pos-table tbody tr:hover{background:#f8fbff}.ua-pos-table .num{text-align:right;font-variant-numeric:tabular-nums}.ua-pos-item-name{font-weight:700;color:#1d2939;max-width:320px}.ua-pos-item-code{font-size:10px;color:var(--muted);margin-top:2px}.ua-pos-qty{display:inline-flex;align-items:center;border:1px solid #d0d5dd;border-radius:7px;overflow:hidden}.ua-pos-qty button{width:26px;height:26px;border:0;background:#f9fafb;color:#344054}.ua-pos-qty span{min-width:38px;text-align:center;font-weight:700}.ua-pos-empty{position:absolute;inset:44px 0 0;display:grid;place-items:center;text-align:center;color:var(--muted)}.ua-pos-empty-icon{font-size:42px;opacity:.35}.ua-pos-empty strong{display:block;color:#475467;font-size:16px;margin:8px}.ua-pos-cart-footer{height:42px;border-top:1px solid var(--line);display:flex;align-items:center;gap:20px;padding:0 14px;background:#fbfcfe;color:var(--muted);font-size:11px}.ua-pos-cart-footer b{color:#344054}
-    .ua-pos-summary{display:flex;flex-direction:column}.ua-pos-summary-head{padding:15px 16px;border-bottom:1px solid var(--line)}.ua-pos-summary-head span{font-size:11px;color:var(--muted)}.ua-pos-summary-head strong{display:block;font-size:15px;margin-top:3px}.ua-pos-order-badge{display:inline-flex!important;width:auto;margin-top:8px!important;padding:3px 7px;border-radius:5px;background:#f2f4f7;color:#475467!important;font-size:10px!important}.ua-pos-totals{padding:14px 16px}.ua-pos-total-row{display:flex;justify-content:space-between;align-items:center;margin:9px 0;color:#475467;font-size:13px}.ua-pos-total-row strong{color:#1d2939;font-variant-numeric:tabular-nums}.ua-pos-total-row.discount strong{color:var(--green)}.ua-pos-due{margin-top:auto;padding:18px 16px 16px;border-top:1px solid var(--line);background:#f8fafc}.ua-pos-due-label{font-size:12px;color:var(--muted);font-weight:650}.ua-pos-due-value{font-size:38px;line-height:1.1;font-weight:850;letter-spacing:-.04em;margin:5px 0 15px;color:#101828;font-variant-numeric:tabular-nums}.ua-pos-pay-main{height:54px;width:100%;border:0;border-radius:10px;background:var(--green);color:#fff;font-size:16px;font-weight:800}.ua-pos-pay-main:disabled{background:#98a2b3}.ua-pos-pay-split{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.ua-pos-pay-split button{height:42px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font-weight:700;font-size:12px}.ua-pos-pay-split button.card{color:#1d4ed8;border-color:#bfdbfe;background:#eff6ff}.ua-pos-footer-status{display:flex;gap:13px;padding:8px 16px;border-top:1px solid var(--line);font-size:10px;color:var(--muted)}
+    .ua-pos-table-wrap{flex:1;overflow:auto;position:relative}.ua-pos-table{border-collapse:separate;border-spacing:0;width:100%;min-width:900px;table-layout:fixed;font-size:12px}.ua-pos-table th{position:sticky;top:0;z-index:2;background:#f2f4f7;color:#475467;text-align:left;padding:9px 10px;border-bottom:1px solid #d0d5dd;font-weight:700;white-space:nowrap}.ua-pos-table td{padding:9px 10px;border-bottom:1px solid #eaecf0;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}.ua-pos-table tbody tr:hover{background:#f8fbff}.ua-pos-table .num{text-align:right;font-variant-numeric:tabular-nums}.ua-pos-item-name{font-weight:700;color:#1d2939;max-width:320px}.ua-pos-item-code{font-size:10px;color:var(--muted);margin-top:2px}.ua-pos-qty{display:inline-flex;align-items:center;border:1px solid #d0d5dd;border-radius:7px;overflow:hidden}.ua-pos-qty button{width:26px;height:26px;border:0;background:#f9fafb;color:#344054}.ua-pos-qty span{min-width:38px;text-align:center;font-weight:700}.ua-pos-empty{position:absolute;inset:44px 0 0;display:grid;place-items:center;text-align:center;color:var(--muted)}.ua-pos-empty-icon{font-size:42px;opacity:.35}.ua-pos-empty strong{display:block;color:#475467;font-size:16px;margin:8px}.ua-pos-cart-footer{height:42px;border-top:1px solid var(--line);display:flex;align-items:center;gap:20px;padding:0 14px;background:#fbfcfe;color:var(--muted);font-size:11px}.ua-pos-cart-footer b{color:#344054}
+    .ua-pos-summary{display:flex;flex-direction:column}.ua-pos-summary-head{padding:15px 16px;border-bottom:1px solid var(--line)}.ua-pos-summary-head span{font-size:11px;color:var(--muted)}.ua-pos-summary-head strong{display:block;font-size:15px;margin-top:3px}.ua-pos-order-badge{display:inline-flex!important;width:auto;margin-top:8px!important;padding:3px 7px;border-radius:5px;background:#f2f4f7;color:#475467!important;font-size:10px!important}.ua-pos-product-preview{display:none;align-items:center;gap:12px;min-height:112px;padding:12px 16px;border-bottom:1px solid var(--line);background:#fbfcfe}.ua-pos-product-preview img{width:88px;height:88px;border-radius:9px;border:1px solid var(--line);object-fit:contain;background:#fff}.ua-pos-product-preview strong{display:block;font-size:13px;line-height:1.25}.ua-pos-product-preview span{display:block;margin-top:5px;color:var(--muted);font-size:11px}.ua-pos-totals{padding:14px 16px}.ua-pos-total-row{display:flex;justify-content:space-between;align-items:center;margin:9px 0;color:#475467;font-size:13px}.ua-pos-total-row strong{color:#1d2939;font-variant-numeric:tabular-nums}.ua-pos-total-row.discount strong{color:var(--green)}.ua-pos-due{margin-top:auto;padding:18px 16px 16px;border-top:1px solid var(--line);background:#f8fafc}.ua-pos-due-label{font-size:12px;color:var(--muted);font-weight:650}.ua-pos-due-value{font-size:38px;line-height:1.1;font-weight:850;letter-spacing:-.04em;margin:5px 0 15px;color:#101828;font-variant-numeric:tabular-nums}.ua-pos-pay-main{height:54px;width:100%;border:0;border-radius:10px;background:var(--green);color:#fff;font-size:16px;font-weight:800}.ua-pos-pay-main:disabled{background:#98a2b3}.ua-pos-pay-split{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.ua-pos-pay-split button{height:42px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font-weight:700;font-size:12px}.ua-pos-pay-split button.card{color:#1d4ed8;border-color:#bfdbfe;background:#eff6ff}.ua-pos-footer-status{display:flex;gap:13px;padding:8px 16px;border-top:1px solid var(--line);font-size:10px;color:var(--muted)}
     .ua-pos-denoms{width:100%;border-collapse:collapse}.ua-pos-denoms th,.ua-pos-denoms td{border-bottom:1px solid #eaecf0;padding:7px 9px;text-align:right}.ua-pos-denoms th:first-child,.ua-pos-denoms td:first-child{text-align:left}.ua-pos-denoms input{width:92px;height:32px;border:1px solid #d0d5dd;border-radius:6px;padding:0 8px;text-align:right}.ua-pos-denom-total{font-size:20px;font-weight:800;text-align:right;padding:12px 0}.ua-pos-modal-note{padding:9px 11px;background:#f2f4f7;border-radius:7px;color:#475467;font-size:12px;margin-bottom:10px}
     @media(max-width:1050px){.ua-pos-main{grid-template-columns:minmax(0,1fr) 290px}.ua-pos-statuses .ua-pos-chip:nth-child(n+4){display:none}}@media(max-width:800px){.ua-pos-main{grid-template-columns:1fr;height:auto}.ua-pos-summary{min-height:360px}.ua-pos-topbar{padding:0 12px}.ua-pos-topbar .ua-pos-brand{min-width:auto}.ua-pos-topbar .ua-pos-brand>div:last-child,.ua-pos-statuses{display:none}.ua-pos-command-top{flex-wrap:wrap}.ua-pos-mode{height:48px}.ua-pos-main{padding:10px}.ua-pos-command{padding:10px}}
   </style>`;
@@ -75,14 +104,15 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
       </section>
       <section class="ua-pos-workspace">
         <header class="ua-pos-topbar">
-          <div class="ua-pos-brand"><div class="ua-pos-logo">UA</div><div><strong>Каса</strong><small class="js-desk">—</small></div></div>
+          <div class="ua-pos-brand"><div class="ua-pos-logo">UA</div><div><strong>Каса</strong></div></div>
           <div class="ua-pos-statuses">
             <div class="ua-pos-chip"><i class="ua-pos-dot js-shift-dot"></i><span>Зміна</span><b class="js-shift">закрита</b></div>
             <div class="ua-pos-chip"><i class="ua-pos-dot ok"></i><span>Склад</span><b class="js-warehouse">—</b></div>
             <div class="ua-pos-chip"><i class="ua-pos-dot js-prro-dot"></i><span>ПРРО</span><b class="js-prro">не налаштовано</b></div>
             <div class="ua-pos-chip"><i class="ua-pos-dot js-terminal-dot"></i><span>Термінал</span><b class="js-terminal">не налаштовано</b></div>
           </div>
-          <div class="ua-pos-user"><div class="ua-pos-avatar js-avatar">К</div><div><strong class="js-employee">—</strong><span class="js-clock"></span></div><button class="ua-pos-icon-button js-logout" title="Вийти">↪</button></div>
+          <div class="ua-pos-user-details"><span class="js-desk">—</span><strong class="js-employee">—</strong><span class="js-clock"></span><span class="js-avatar">К</span></div>
+          <div class="ua-pos-top-actions"><button class="ua-pos-icon-button js-layout" title="Налаштувати вигляд">⚙</button><button class="ua-pos-icon-button js-service-info" title="Службова інформація">ⓘ</button><button class="ua-pos-icon-button js-logout" title="Вийти">↪</button></div>
         </header>
         <section class="ua-pos-command">
           <div class="ua-pos-command-top">
@@ -114,13 +144,14 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
               <button class="ua-pos-customer-button js-identify">Ідентифікувати покупця</button>
             </div>
             <div class="ua-pos-table-wrap">
-              <table class="ua-pos-table"><thead><tr><th>Товар / артикул</th><th>Штрихкод</th><th class="num">Кількість</th><th>Од.</th><th class="num">Ціна</th><th class="num">Знижка</th><th class="num">Сума</th><th>Партія / серійний №</th><th>Перевірка</th></tr></thead><tbody class="js-cart-body"></tbody></table>
+              <table class="ua-pos-table"><thead><tr><th data-col="item">Товар / артикул</th><th data-col="barcode">Штрихкод</th><th data-col="qty" class="num">Кількість</th><th data-col="uom">Од.</th><th data-col="rate" class="num">Ціна</th><th data-col="discount" class="num">Знижка</th><th data-col="amount" class="num">Сума</th><th data-col="tracking">Партія / серійний №</th><th data-col="status">Перевірка</th></tr></thead><tbody class="js-cart-body"></tbody></table>
               <div class="ua-pos-empty js-empty"><div><div class="ua-pos-empty-icon">▦</div><strong>Чек порожній</strong><span>Відскануйте штрихкод або введіть артикул у полі зверху</span></div></div>
             </div>
             <div class="ua-pos-cart-footer"><span>Артикулів: <b class="js-lines">0</b></span><span>Кількість: <b class="js-qty">0</b></span><span>Гарячі клавіші: <b>F2 пошук · F4 клієнт · F8 повернення · F9 оплатити</b></span></div>
           </section>
           <aside class="ua-pos-panel ua-pos-summary">
             <div class="ua-pos-summary-head"><span>Поточний документ</span><strong class="js-order-name">Чек ще не створено</strong><span class="ua-pos-order-badge js-order-badge">ГОТОВО ДО РОБОТИ</span></div>
+            <div class="ua-pos-product-preview"><img class="js-product-image" alt="Фото товару"><div><strong class="js-product-name"></strong><span class="js-product-code"></span></div></div>
             <div class="ua-pos-totals">
               <div class="ua-pos-total-row"><span>Повна сума</span><strong><span class="js-net">0,00</span> грн</strong></div>
               <div class="ua-pos-total-row discount"><span>Знижка</span><strong>− <span class="js-discount">0,00</span> грн</strong></div>
@@ -146,6 +177,79 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
 
   function clearNotice() {
     $root.find(".js-alert").hide();
+  }
+
+  const layoutLabels = {
+    item: "Товар / артикул",
+    barcode: "Штрихкод",
+    qty: "Кількість",
+    uom: "Одиниця виміру",
+    rate: "Ціна",
+    discount: "Знижка",
+    amount: "Сума",
+    tracking: "Партія / серійний номер",
+    status: "Перевірка",
+  };
+
+  function applyLayout() {
+    let minimumWidth = 0;
+    Object.entries(state.layout.columns).forEach(([key, config]) => {
+      const width = Math.max(55, Math.min(600, cint(config.width || layoutDefaults.columns[key].width)));
+      $root.find(`[data-col="${key}"]`).toggle(Boolean(config.visible)).css({ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` });
+      if (config.visible) minimumWidth += width;
+    });
+    $root.find(".ua-pos-table").css("min-width", `${Math.max(550, minimumWidth)}px`);
+    renderProductPreview();
+  }
+
+  function renderProductPreview() {
+    const items = state.order?.items || [];
+    const item = items.find((row) => row.name === state.lastItem?.name) || items.at(-1);
+    const visible = Boolean(state.layout.showImage && item?.image);
+    $root.find(".ua-pos-product-preview").css("display", visible ? "flex" : "none");
+    if (!visible) return;
+    $root.find(".js-product-image").attr("src", item.image);
+    $root.find(".js-product-name").text(item.item_name || item.item_code);
+    $root.find(".js-product-code").text(item.item_code || "");
+  }
+
+  function layoutDialog() {
+    const fields = [{ fieldname: "show_image", fieldtype: "Check", label: "Показувати фото останнього вибраного товару", default: state.layout.showImage ? 1 : 0 }];
+    Object.entries(layoutLabels).forEach(([key, label]) => {
+      fields.push(
+        { fieldname: `${key}_visible`, fieldtype: "Check", label: `Показувати «${label}»`, default: state.layout.columns[key].visible ? 1 : 0 },
+        { fieldname: `${key}_width`, fieldtype: "Int", label: `Ширина «${label}», px`, default: state.layout.columns[key].width, depends_on: `eval:doc.${key}_visible` },
+      );
+    });
+    const dialog = new frappe.ui.Dialog({
+      title: "Вигляд вікна касира",
+      size: "large",
+      fields,
+      primary_action_label: "Зберегти",
+      primary_action: (values) => {
+        state.layout.showImage = Boolean(values.show_image);
+        Object.keys(layoutLabels).forEach((key) => {
+          state.layout.columns[key].visible = Boolean(values[`${key}_visible`]);
+          state.layout.columns[key].width = Math.max(55, Math.min(600, cint(values[`${key}_width`] || layoutDefaults.columns[key].width)));
+        });
+        localStorage.setItem("ua_pos_layout", JSON.stringify(state.layout));
+        applyLayout();
+        dialog.hide();
+        frappe.show_alert({ message: "Вигляд каси збережено для цього пристрою", indicator: "green" });
+      },
+    });
+    dialog.show();
+  }
+
+  function serviceInfoDialog() {
+    const session = state.session || {};
+    const desk = session.desk || {};
+    const value = (label, content) => `<div style="padding:8px 0;border-bottom:1px solid #eaecf0"><span style="display:block;color:#667085;font-size:11px">${label}</span><b>${esc(content || "не налаштовано")}</b></div>`;
+    frappe.msgprint({
+      title: "Службова інформація каси",
+      indicator: session.shift ? "green" : "orange",
+      message: `${value("Каса", session.cash_desk)}${value("Зміна", session.shift || "закрита")}${value("Склад", desk.warehouse)}${value("ПРРО", desk.prro_cash_register)}${value("Банківський термінал", desk.terminal)}${value("Працівник", session.employee_name || session.employee)}${value("Дата й час", new Intl.DateTimeFormat("uk-UA", { dateStyle: "short", timeStyle: "medium" }).format(new Date()))}`,
+    });
   }
 
   function canEditOrder() {
@@ -178,6 +282,8 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
   function renderOrder(order) {
     state.order = order || null;
     const items = order?.items || [];
+    if (!order) state.lastItem = null;
+    else state.lastItem = items.find((item) => item.name === state.lastItem?.name) || items.at(-1) || null;
     const editable = canEditOrder();
     $root.find(".js-empty").toggle(items.length === 0);
     $root.find(".js-order-name").text(order ? `${order.order_type === "Return" ? "Повернення" : "Чек"} ${order.name}` : "Чек ще не створено");
@@ -193,7 +299,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
     $root.find(".js-lines").text(items.length);
     $root.find(".js-qty").text(money(items.reduce((sum, item) => sum + flt(item.qty), 0)));
     $root.find(".js-cart-body").html(items.map((item) => `
-      <tr data-row="${esc(item.name)}"><td><div class="ua-pos-item-name">${esc(item.item_name || item.item_code)}</div><div class="ua-pos-item-code">${esc(item.item_code)}</div></td><td>${esc(item.barcode || "—")}</td><td class="num"><div class="ua-pos-qty"><button data-delta="-1" ${editable && order?.order_type !== "Return" ? "" : "disabled"}>−</button><span>${esc(item.qty)}</span><button data-delta="1" ${editable && order?.order_type !== "Return" ? "" : "disabled"}>＋</button></div></td><td>${esc(item.uom || "—")}</td><td class="num">${money(item.rate)}</td><td class="num">${money(item.discount_amount)}</td><td class="num"><b>${money(item.amount)}</b></td><td><button class="btn btn-xs btn-default js-track-item" ${editable && order?.order_type !== "Return" ? "" : "disabled"}>${esc(item.batch_no || item.serial_no || "Вказати")}</button></td><td><span style="color:#079455">● Готово</span></td></tr>`).join(""));
+      <tr data-row="${esc(item.name)}"><td data-col="item"><div class="ua-pos-item-name">${esc(item.item_name || item.item_code)}</div><div class="ua-pos-item-code">${esc(item.item_code)}</div></td><td data-col="barcode">${esc(item.barcode || "—")}</td><td data-col="qty" class="num"><div class="ua-pos-qty"><button data-delta="-1" ${editable && order?.order_type !== "Return" ? "" : "disabled"}>−</button><span>${esc(item.qty)}</span><button data-delta="1" ${editable && order?.order_type !== "Return" ? "" : "disabled"}>＋</button></div></td><td data-col="uom">${esc(item.uom || "—")}</td><td data-col="rate" class="num">${money(item.rate)}</td><td data-col="discount" class="num">${money(item.discount_amount)}</td><td data-col="amount" class="num"><b>${money(item.amount)}</b></td><td data-col="tracking"><button class="btn btn-xs btn-default js-track-item" ${editable && order?.order_type !== "Return" ? "" : "disabled"}>${esc(item.batch_no || item.serial_no || "Вказати")}</button></td><td data-col="status"><span style="color:#079455">● Готово</span></td></tr>`).join(""));
     const payable = Boolean(order && items.length && ["Building", "Awaiting Payment"].includes(order.status) && state.session?.shift);
     $root.find(".js-pay-cash").prop("disabled", !payable);
     $root.find(".js-pay-card").prop("disabled", !payable || !state.session?.desk?.terminal);
@@ -206,6 +312,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
       state.saleMode = order.fiscal_mode;
       $root.find(".ua-pos-mode button").removeClass("active").filter(`[data-mode="${state.saleMode}"]`).addClass("active");
     }
+    applyLayout();
     setTimeout(() => $root.find(".ua-pos-scan").focus(), 0);
   }
 
@@ -283,7 +390,10 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
   async function scan(query) {
     if (!state.session?.shift) return showNotice("Продаж неможливий: управлінська зміна закрита.", "error");
     if (!state.order || !canEditOrder()) await newOrder();
-    renderOrder(await api("scan_item", { pos_session_token: state.token, order: state.order.name, query }));
+    const order = await api("scan_item", { pos_session_token: state.token, order: state.order.name, query });
+    state.lastItem = (order.items || []).find((item) => [item.item_code, item.barcode].includes(query)) || order.items?.at(-1) || null;
+    renderOrder(order);
+    await maybeOfferBirthday();
   }
 
   function paymentDialog(kind) {
@@ -547,22 +657,86 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
     dialog.fields_dict.token.$input.focus();
   }
 
+  async function maybeOfferBirthday() {
+    if (!canEditOrder() || !state.order?.customer || state.order.order_type === "Return") return;
+    let offer;
+    try {
+      offer = await api("birthday_offer", { pos_session_token: state.token, customer: state.order.customer, order: state.order.name });
+    } catch (error) {
+      return;
+    }
+    if (!offer?.eligible || offer.applied || !flt(offer.discount_percent)) return;
+    const promptKey = `${state.order.name}:${state.order.customer}:${offer.benefit_year}`;
+    if (state.birthdayPromptKey === promptKey) return;
+    state.birthdayPromptKey = promptKey;
+    const customerName = offer.customer?.ua_first_name || offer.customer?.customer_name || state.order.customer;
+    frappe.confirm(
+      `${esc(customerName)}, доступна знижка до дня народження <b>${money(offer.discount_percent)}%</b> до ${esc(frappe.datetime.str_to_user(offer.valid_until))}.<br><br>Застосувати її до поточного чека?`,
+      async () => {
+        renderOrder(await api("apply_birthday_discount", { pos_session_token: state.token, order: state.order.name }));
+        frappe.show_alert({ message: "Знижку до дня народження застосовано", indicator: "green" });
+      },
+    );
+  }
+
+  function promptNewCustomer(result) {
+    return new Promise((resolve) => {
+      let completed = false;
+      const finish = (value) => {
+        if (completed) return;
+        completed = true;
+        resolve(value);
+      };
+      const dialog = new frappe.ui.Dialog({
+        title: "Новий покупець",
+        size: "large",
+        fields: [
+          { fieldname: "phone", fieldtype: "Data", label: "Телефон", default: result.phone, read_only: 1 },
+          { fieldname: "identity_section", fieldtype: "Section Break", label: "Основні дані" },
+          { fieldname: "last_name", fieldtype: "Data", label: "Прізвище", reqd: 1 },
+          { fieldname: "first_name", fieldtype: "Data", label: "Ім’я", reqd: 1 },
+          { fieldname: "middle_name", fieldtype: "Data", label: "По батькові" },
+          { fieldname: "identity_column", fieldtype: "Column Break" },
+          { fieldname: "gender", fieldtype: "Link", options: "Gender", label: "Стать" },
+          { fieldname: "date_of_birth", fieldtype: "Date", label: "Дата народження" },
+          { fieldname: "contact_section", fieldtype: "Section Break", label: "Контактні дані" },
+          { fieldname: "email", fieldtype: "Data", options: "Email", label: "Email" },
+          { fieldname: "city", fieldtype: "Data", label: "Місто" },
+          { fieldname: "comment", fieldtype: "Small Text", label: "Коментар" },
+          { fieldname: "privacy_note", fieldtype: "HTML", options: '<div class="ua-pos-modal-note">Телефон уже підтверджений покупцем. Картка створиться без переходу зі сторінки каси. Якщо покупець відмовився від реєстрації, натисніть «Без створення».</div>' },
+        ],
+        primary_action_label: "Створити й вибрати",
+        primary_action: async (values) => {
+          dialog.get_primary_btn().prop("disabled", true);
+          try {
+            const customer = await identificationApi("quick_create", { request_id: result.request_id, ...values });
+            finish(customer);
+            dialog.hide();
+          } finally {
+            dialog.get_primary_btn().prop("disabled", false);
+          }
+        },
+      });
+      dialog.set_secondary_action_label("Без створення");
+      dialog.set_secondary_action(() => {
+        finish(null);
+        dialog.hide();
+      });
+      dialog.$wrapper.on("hidden.bs.modal", () => finish(null));
+      dialog.show();
+      dialog.fields_dict.last_name.$input.focus();
+    });
+  }
+
   async function useIdentifiedCustomer(result) {
     if (result.status !== "Verified") return false;
     let customer = result.customer;
     if (!customer) {
-      const customerName = await new Promise((resolve) => {
-        frappe.prompt(
-          { fieldname: "customer_name", fieldtype: "Data", label: "Ім’я покупця", reqd: 1 },
-          (values) => resolve(values.customer_name),
-          "Нового покупця підтверджено",
-          "Створити картку",
-        );
-      });
-      customer = await identificationApi("quick_create", {
-        request_id: result.request_id,
-        customer_name: customerName,
-      });
+      customer = await promptNewCustomer(result);
+      if (!customer) {
+        frappe.show_alert({ message: "Продаж продовжено на роздрібного покупця", indicator: "blue" });
+        return true;
+      }
     }
     renderOrder(
       await api("set_order_customer", {
@@ -572,6 +746,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
       }),
     );
     frappe.show_alert({ message: `Покупця ${customer.customer_name || customer.name} ідентифіковано`, indicator: "green" });
+    await maybeOfferBirthday();
     return true;
   }
 
@@ -660,15 +835,32 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
     dialog.fields_dict.phone.$input.focus();
   }
 
+  async function selectCustomer() {
+    if (!state.session?.shift) return showNotice("Спочатку відкрийте управлінську зміну.", "error");
+    if (!state.order || !canEditOrder()) await newOrder();
+    frappe.prompt(
+      { fieldname: "customer", fieldtype: "Link", options: "Customer", label: "Клієнт", reqd: 1, default: state.order.customer },
+      async (values) => {
+        renderOrder(await api("set_order_customer", { pos_session_token: state.token, order: state.order.name, customer: values.customer }));
+        state.birthdayPromptKey = null;
+        await maybeOfferBirthday();
+      },
+      "Вибір клієнта",
+      "Застосувати",
+    );
+  }
+
   $root.on("click", ".ua-pos-login-button", login);
   $root.on("keydown", ".ua-pos-login-barcode", (event) => { if (event.key === "Enter") login(); });
   $root.on("click", ".js-logout", async () => { await api("logout", { pos_session_token: state.token }); sessionStorage.removeItem("ua_pos_token"); location.reload(); });
   $root.on("keydown", ".ua-pos-scan", async (event) => { if (event.key !== "Enter") return; const query = event.currentTarget.value.trim(); if (!query) return; event.currentTarget.value = ""; await scan(query); });
   $root.on("click", ".js-new-order", newOrder);
+  $root.on("click", ".js-layout", layoutDialog);
+  $root.on("click", ".js-service-info", serviceInfoDialog);
   $root.on("click", ".ua-pos-mode button", async function () { const mode = this.dataset.mode; if (mode === "Fiscal" && !state.session?.desk?.prro_cash_register) return showNotice("Фіскальний режим недоступний: для каси не налаштовано ПРРО.", "error"); state.saleMode = mode; if (canEditOrder()) renderOrder(await api("set_order_mode", { pos_session_token: state.token, order: state.order.name, fiscal_mode: mode })); else renderSession(); });
   $root.on("click", ".ua-pos-qty button", async function () { const rowName = $(this).closest("tr").data("row"); const row = state.order.items.find((item) => item.name === rowName); renderOrder(await api("set_item_qty", { pos_session_token: state.token, order: state.order.name, row_name: rowName, qty: flt(row.qty) + flt(this.dataset.delta) })); });
   $root.on("click", ".js-track-item", function () { itemTrackingDialog($(this).closest("tr").data("row")); });
-  $root.on("click", ".js-customer", () => { if (!canEditOrder()) return; frappe.prompt({ fieldname: "customer", fieldtype: "Link", options: "Customer", label: "Клієнт", reqd: 1, default: state.order.customer }, async (values) => renderOrder(await api("set_order_customer", { pos_session_token: state.token, order: state.order.name, customer: values.customer })), "Вибір клієнта", "Застосувати"); });
+  $root.on("click", ".js-customer", selectCustomer);
   $root.on("click", ".js-identify", identifyCustomer);
   $root.on("click", ".js-discount", discountDialog);
   $root.on("click", ".js-hold", async () => { if (state.order) renderOrder(await api("hold_order", { pos_session_token: state.token, order: state.order.name })); });
@@ -685,8 +877,8 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
   $root.on("click", ".js-return", startReturn);
 
   $(document).off("keydown.ua_pos").on("keydown.ua_pos", (event) => {
-    if ($(event.target).is("input,textarea,select") && event.key !== "F2") return;
-    const actions = { F2: () => $root.find(".ua-pos-scan").focus(), F3: () => $root.find(".js-stock").click(), F4: () => $root.find(".js-customer").first().click(), F5: () => $root.find(".js-identify").first().click(), F6: () => $root.find(".js-discount").click(), F7: () => $root.find(".js-hold").click(), F8: () => $root.find(".js-return").click(), F9: () => $root.find(".js-pay-cash").first().click() };
+    if ($(event.target).is("input,textarea,select") && !/^F\d{1,2}$/.test(event.key)) return;
+    const actions = { F2: () => $root.find(".ua-pos-scan").focus(), F3: () => $root.find(".js-stock").click(), F4: selectCustomer, F5: identifyCustomer, F6: discountDialog, F7: () => $root.find(".js-hold").click(), F8: startReturn, F9: () => { if (!$root.find(".js-pay-cash").first().prop("disabled")) paymentDialog("Cash"); } };
     if (actions[event.key]) { event.preventDefault(); actions[event.key](); }
     if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "s") { event.preventDefault(); openShift(); }
     if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "c") { event.preventDefault(); closeShift(); }

@@ -78,6 +78,17 @@ def ensure_pos_setup():
 				{"fieldname": "ua_serial_mode", "label": "UA Serial Mode", "fieldtype": "Select", "options": "\nStrict\nAdvisory\nNone"},
 				{"fieldname": "ua_warranty_months", "label": "Warranty (months)", "fieldtype": "Int"},
 			],
+			"Customer": [
+				{"fieldname": "ua_pos_details_section", "label": "UA POS Customer Details", "fieldtype": "Section Break"},
+				{"fieldname": "ua_last_name", "label": "Прізвище", "fieldtype": "Data"},
+				{"fieldname": "ua_first_name", "label": "Ім’я", "fieldtype": "Data"},
+				{"fieldname": "ua_middle_name", "label": "По батькові", "fieldtype": "Data"},
+				{"fieldname": "ua_gender", "label": "Стать", "fieldtype": "Link", "options": "Gender"},
+				{"fieldname": "ua_date_of_birth", "label": "Дата народження", "fieldtype": "Date"},
+				{"fieldname": "ua_city", "label": "Місто", "fieldtype": "Data"},
+				{"fieldname": "ua_pos_comment", "label": "Коментар касира", "fieldtype": "Small Text"},
+				{"fieldname": "ua_telegram_chat_id", "label": "Telegram Chat ID", "fieldtype": "Data", "hidden": 1, "read_only": 1},
+			],
 		},
 		update=True,
 	)

@@ -1,6 +1,6 @@
 {
  "doctype":"DocType","name":"POS Order","module":"UA POS","autoname":"POS-ORD-.YYYY.-.#####","title_field":"name",
- "field_order":["cash_desk","operational_shift","employee","customer","order_type","return_against","fiscal_mode","status","items","payments_plan","net_total","discount_total","grand_total","paid_total","change_amount","lookup_token","idem_key","sales_invoice","prro_receipt","routing_log","recovery_note"],
+ "field_order":["cash_desk","operational_shift","employee","customer","order_type","return_against","fiscal_mode","status","items","payments_plan","net_total","discount_total","grand_total","paid_total","change_amount","birthday_benefit_year","birthday_discount_percent","lookup_token","idem_key","sales_invoice","prro_receipt","routing_log","recovery_note"],
  "fields":[
   {"fieldname":"cash_desk","fieldtype":"Link","label":"Cash Desk","options":"POS Cash Desk","reqd":1},
   {"fieldname":"operational_shift","fieldtype":"Link","label":"Operational Shift","options":"POS Operational Shift","reqd":1},
@@ -17,6 +17,8 @@
   {"fieldname":"grand_total","fieldtype":"Currency","label":"Grand Total","read_only":1},
   {"fieldname":"paid_total","fieldtype":"Currency","label":"Paid Total","read_only":1},
   {"fieldname":"change_amount","fieldtype":"Currency","label":"Change","read_only":1},
+  {"fieldname":"birthday_benefit_year","fieldtype":"Int","label":"Birthday Benefit Year","read_only":1},
+  {"fieldname":"birthday_discount_percent","fieldtype":"Percent","label":"Birthday Discount","read_only":1},
   {"fieldname":"lookup_token","fieldtype":"Data","label":"Receipt Lookup Token","unique":1,"read_only":1},
   {"fieldname":"idem_key","fieldtype":"Data","label":"Idempotency Key","unique":1,"read_only":1},
   {"fieldname":"sales_invoice","fieldtype":"Link","label":"Sales Invoice","options":"Sales Invoice","read_only":1},
