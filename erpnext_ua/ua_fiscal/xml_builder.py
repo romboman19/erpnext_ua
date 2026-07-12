@@ -1,7 +1,11 @@
-"""Генерація XML документів check01 для фіскального сервера ДПС.
+"""Генерація XML документів check01 і zrep01 для фіскального сервера ДПС (ЄВПЕЗ).
 
-Кодування — windows-1251 (вимога опису АРІ). Структура за check01.xsd
-і прикладами з офіційної документації (дзеркало: /home/romboman19/prro_docs).
+Кодування — windows-1251 (вимога опису АРІ). Порядок елементів строго за
+check01.xsd / zrep01.xsd (дзеркало: /home/romboman19/prro_docs), інакше сервер
+відхилить документ з ERROR_XML.
+
+Для ФОП без ПДВ (група 2, група 3 5%) секції LETTERS/CHECKTAX не формуються.
+Для ФОП 3 зі ставкою 3% додається CHECKTAX і LETTERS у рядках (передається явно).
 """
 
 import uuid
@@ -9,40 +13,68 @@ from xml.sax.saxutils import escape
 
 import frappe
 
-# Типи документів (CheckDocumentType)
+# DOCTYPE (CheckDocumentType)
 DOCTYPE_SALE = 0
 DOCTYPE_OPEN_SHIFT = 100
 DOCTYPE_CLOSE_SHIFT = 101
 DOCTYPE_OFFLINE_BEGIN = 102
 DOCTYPE_OFFLINE_END = 103
 
-# Розширені типи (CheckDocumentSubType)
+# DOCSUBTYPE (CheckDocumentSubType)
 SUBTYPE_GOODS = 0
 SUBTYPE_RETURN = 1
 SUBTYPE_SERVICE_DEPOSIT = 2
 SUBTYPE_SERVICE_ISSUE = 4
 SUBTYPE_STORNO = 5
 
+# Порядок елементів CHECKHEAD (CHead) за check01.xsd
+_CHECKHEAD_ORDER = [
+	"DOCTYPE", "DOCSUBTYPE", "UID", "TIN", "IPN", "ORGNM", "POINTNM", "POINTADDR",
+	"ORDERDATE", "ORDERTIME", "ORDERNUM", "CASHDESKNUM", "CASHREGISTERNUM",
+	"ORDERRETNUM", "ORDERSTORNUM", "REVOKELASTONLINEDOC", "CASHIER", "VER",
+	"ORDERTAXNUM", "OFFLINE", "PREVDOCHASH", "TESTING",
+]
+
+# Порядок елементів ZREPHEAD (ZHead) за zrep01.xsd
+_ZREPHEAD_ORDER = [
+	"UID", "TIN", "IPN", "ORGNM", "POINTNM", "POINTADDR", "ORDERDATE", "ORDERTIME",
+	"ORDERNUM", "CASHDESKNUM", "CASHREGISTERNUM", "CASHIER", "VER", "ORDERTAXNUM",
+	"OFFLINE", "PREVDOCHASH", "TESTING",
+]
+
 
 def _fmt_sum(value) -> str:
 	return f"{frappe.utils.flt(value):.2f}"
 
 
-def _head_xml(head: dict) -> str:
-	"""CHECKHEAD: порядок елементів за XSD."""
-	order = [
-		"DOCTYPE", "DOCSUBTYPE", "UID", "TIN", "IPN", "ORGNM", "POINTNM",
-		"POINTADDR", "ORDERDATE", "ORDERTIME", "ORDERNUM", "CASHDESKNUM",
-		"CASHREGISTERNUM", "CASHIER", "VER", "ORDERTAXNUM", "ORDERRETNUM",
-		"ORDERSTORNUM", "OFFLINE", "PREVDOCHASH", "TESTING",
-	]
+def _ordered(head: dict, order: list[str]) -> str:
 	rows = []
 	for tag in order:
 		val = head.get(tag)
 		if val is None or val == "":
 			continue
 		rows.append(f"<{tag}>{escape(str(val))}</{tag}>")
-	return "<CHECKHEAD>" + "".join(rows) + "</CHECKHEAD>"
+	return "".join(rows)
+
+
+def _common_head(fop: dict, register: dict, local_number, cashier_name, dt) -> dict:
+	head = {
+		"UID": str(uuid.uuid4()).upper(),
+		"TIN": fop["tax_id"],
+		"ORGNM": f"ФОП {fop['fop_full_name']}",
+		"POINTNM": register["unit_name"],
+		"POINTADDR": register["unit_address"],
+		"ORDERDATE": dt.strftime("%d%m%Y"),
+		"ORDERTIME": dt.strftime("%H%M%S"),
+		"ORDERNUM": local_number,
+		"CASHDESKNUM": register.get("local_number") or 1,
+		"CASHREGISTERNUM": register["fiscal_number"],
+		"CASHIER": cashier_name,
+		"VER": 1,
+	}
+	if fop.get("vat_payer") and fop.get("vat_number"):
+		head["IPN"] = fop["vat_number"]
+	return head
 
 
 def build_check_head(
@@ -62,25 +94,14 @@ def build_check_head(
 	order_storno_num: str | None = None,
 ) -> dict:
 	dt = posting_datetime or frappe.utils.now_datetime()
-	head = {
-		"DOCTYPE": doctype,
-		"UID": str(uuid.uuid4()).upper(),
-		"TIN": fop["tax_id"],
-		"ORGNM": f"ФОП {fop['fop_full_name']}",
-		"POINTNM": register["unit_name"],
-		"POINTADDR": register["unit_address"],
-		"ORDERDATE": dt.strftime("%d%m%Y"),
-		"ORDERTIME": dt.strftime("%H%M%S"),
-		"ORDERNUM": local_number,
-		"CASHDESKNUM": register.get("local_number") or 1,
-		"CASHREGISTERNUM": register["fiscal_number"],
-		"CASHIER": cashier_name,
-		"VER": 1,
-	}
-	if fop.get("vat_payer") and fop.get("vat_number"):
-		head["IPN"] = fop["vat_number"]
+	head = _common_head(fop, register, local_number, cashier_name, dt)
+	head["DOCTYPE"] = doctype
 	if subtype is not None:
 		head["DOCSUBTYPE"] = subtype
+	if order_ret_num:
+		head["ORDERRETNUM"] = order_ret_num
+	if order_storno_num:
+		head["ORDERSTORNUM"] = order_storno_num
 	if testing:
 		head["TESTING"] = "true"
 	if offline:
@@ -88,51 +109,41 @@ def build_check_head(
 		head["ORDERTAXNUM"] = order_tax_num
 		if prev_doc_hash:
 			head["PREVDOCHASH"] = prev_doc_hash
-	if order_ret_num:
-		head["ORDERRETNUM"] = order_ret_num
-	if order_storno_num:
-		head["ORDERSTORNUM"] = order_storno_num
 	return head
 
 
-def build_service_document(head: dict) -> bytes:
-	"""Технічні документи: відкриття/закриття зміни, початок/кінець офлайн сесії."""
+def _wrap_check(head_xml: str, body: str = "") -> bytes:
 	xml = (
 		'<?xml version="1.0" encoding="windows-1251"?>'
 		'<CHECK xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
 		'xsi:noNamespaceSchemaLocation="check01.xsd">'
-		+ _head_xml(head)
-		+ "</CHECK>"
+		f"<CHECKHEAD>{head_xml}</CHECKHEAD>{body}</CHECK>"
 	)
 	return xml.encode("windows-1251")
 
 
-def build_sale_check(head: dict, items: list[dict], payments: list[dict], total: float) -> bytes:
-	"""Чек реалізації (або повернення — залежно від DOCSUBTYPE у head).
+def build_service_document(head: dict) -> bytes:
+	"""Технічні документи: відкриття/закриття зміни, початок/кінець офлайн сесії."""
+	return _wrap_check(_ordered(head, _CHECKHEAD_ORDER))
 
-	items: [{code, name, uom, qty, price, amount, letters?}]
-	payments: [{code: 0-готівка/1-картка.., name, sum, provided?, remains?}]
+
+def build_sale_check(
+	head: dict,
+	items: list[dict],
+	payments: list[dict],
+	total: float,
+	taxes: list[dict] | None = None,
+) -> bytes:
+	"""Чек реалізації/повернення (тип за DOCSUBTYPE у head).
+
+	items:    [{code, name, uom, qty, price, amount, uktzed?, unit_cd?, letters?}]
+	payments: [{code, name, sum, provided?, remains?}]  (code: 0-готівка, 1-картка)
+	taxes:    [{type, name, letter, prc, sign, turnover, sum}]  (лише для платників ПДВ)
 	"""
-	body_rows = []
-	for i, item in enumerate(items, start=1):
-		row = [
-			f"<ROW ROWNUM=\"{i}\">",
-			f"<CODE>{escape(str(item.get('code') or i))}</CODE>",
-			f"<NAME>{escape(item['name'])}</NAME>",
-			f"<UNITNM>{escape(item.get('uom') or 'шт')}</UNITNM>",
-			f"<AMOUNT>{frappe.utils.flt(item['qty']):g}</AMOUNT>",
-			f"<PRICE>{_fmt_sum(item['price'])}</PRICE>",
-			f"<COST>{_fmt_sum(item['amount'])}</COST>",
-		]
-		if item.get("letters"):
-			row.append(f"<LETTERS>{escape(item['letters'])}</LETTERS>")
-		row.append("</ROW>")
-		body_rows.append("".join(row))
-
 	pay_rows = []
 	for i, pay in enumerate(payments, start=1):
 		pay_rows.append(
-			f"<ROW ROWNUM=\"{i}\">"
+			f'<ROW ROWNUM="{i}">'
 			f"<PAYFORMCD>{pay['code']}</PAYFORMCD>"
 			f"<PAYFORMNM>{escape(pay['name'])}</PAYFORMNM>"
 			f"<SUM>{_fmt_sum(pay['sum'])}</SUM>"
@@ -141,14 +152,115 @@ def build_sale_check(head: dict, items: list[dict], payments: list[dict], total:
 			+ "</ROW>"
 		)
 
+	tax_xml = ""
+	if taxes:
+		tax_rows = []
+		for i, tax in enumerate(taxes, start=1):
+			tax_rows.append(
+				f'<ROW ROWNUM="{i}">'
+				f"<TYPE>{tax.get('type', 0)}</TYPE>"
+				f"<NAME>{escape(tax['name'])}</NAME>"
+				+ (f"<LETTER>{escape(tax['letter'])}</LETTER>" if tax.get("letter") else "")
+				+ f"<PRC>{frappe.utils.flt(tax['prc']):.2f}</PRC>"
+				+ (f"<SIGN>{'true' if tax.get('sign') else 'false'}</SIGN>")
+				+ f"<TURNOVER>{_fmt_sum(tax['turnover'])}</TURNOVER>"
+				+ f"<SUM>{_fmt_sum(tax['sum'])}</SUM>"
+				+ "</ROW>"
+			)
+		tax_xml = "<CHECKTAX>" + "".join(tax_rows) + "</CHECKTAX>"
+
+	body_rows = []
+	for i, item in enumerate(items, start=1):
+		row = [f'<ROW ROWNUM="{i}">', f"<CODE>{escape(str(item.get('code') or i))}</CODE>"]
+		if item.get("uktzed"):
+			row.append(f"<UKTZED>{escape(str(item['uktzed']))}</UKTZED>")
+		row.append(f"<NAME>{escape(item['name'])}</NAME>")
+		if item.get("unit_cd"):
+			row.append(f"<UNITCD>{escape(str(item['unit_cd']))}</UNITCD>")
+		row.append(f"<UNITNM>{escape(item.get('uom') or 'шт')}</UNITNM>")
+		row.append(f"<AMOUNT>{frappe.utils.flt(item['qty']):g}</AMOUNT>")
+		row.append(f"<PRICE>{_fmt_sum(item['price'])}</PRICE>")
+		if item.get("letters"):
+			row.append(f"<LETTERS>{escape(item['letters'])}</LETTERS>")
+		row.append(f"<COST>{_fmt_sum(item['amount'])}</COST>")
+		row.append("</ROW>")
+		body_rows.append("".join(row))
+
+	body = (
+		f"<CHECKTOTAL><SUM>{_fmt_sum(total)}</SUM></CHECKTOTAL>"
+		+ "<CHECKPAY>" + "".join(pay_rows) + "</CHECKPAY>"
+		+ tax_xml
+		+ "<CHECKBODY>" + "".join(body_rows) + "</CHECKBODY>"
+	)
+	return _wrap_check(_ordered(head, _CHECKHEAD_ORDER), body)
+
+
+def build_zrep(
+	*,
+	fop: dict,
+	register: dict,
+	local_number: int,
+	cashier_name: str,
+	realiz: dict,
+	returns: dict | None = None,
+	service_input: float = 0,
+	service_output: float = 0,
+	posting_datetime=None,
+	testing: bool = False,
+	offline: bool = False,
+	prev_doc_hash: str | None = None,
+	order_tax_num: str | None = None,
+) -> bytes:
+	"""Z-звіт (zrep01).
+
+	realiz / returns: {sum, count, payforms: [{code, name, sum}], taxes: [...]}
+	"""
+	dt = posting_datetime or frappe.utils.now_datetime()
+	head = _common_head(fop, register, local_number, cashier_name, dt)
+	if testing:
+		head["TESTING"] = "true"
+	if offline:
+		head["OFFLINE"] = "true"
+		head["ORDERTAXNUM"] = order_tax_num
+		if prev_doc_hash:
+			head["PREVDOCHASH"] = prev_doc_hash
+
+	def _section(tag: str, data: dict) -> str:
+		payforms = "".join(
+			f'<ROW ROWNUM="{i}"><PAYFORMCD>{p["code"]}</PAYFORMCD>'
+			f"<PAYFORMNM>{escape(p['name'])}</PAYFORMNM><SUM>{_fmt_sum(p['sum'])}</SUM></ROW>"
+			for i, p in enumerate(data.get("payforms", []), start=1)
+		)
+		taxes = "".join(
+			f'<ROW ROWNUM="{i}"><TYPE>{t.get("type", 0)}</TYPE><NAME>{escape(t["name"])}</NAME>'
+			+ (f"<LETTER>{escape(t['letter'])}</LETTER>" if t.get("letter") else "")
+			+ f"<PRC>{frappe.utils.flt(t['prc']):.2f}</PRC><SIGN>{'true' if t.get('sign') else 'false'}</SIGN>"
+			+ f"<TURNOVER>{_fmt_sum(t['turnover'])}</TURNOVER><SUM>{_fmt_sum(t['sum'])}</SUM></ROW>"
+			for i, t in enumerate(data.get("taxes", []), start=1)
+		)
+		inner = f"<SUM>{_fmt_sum(data.get('sum', 0))}</SUM><ORDERSCNT>{data.get('count', 0)}</ORDERSCNT>"
+		if payforms:
+			inner += f"<PAYFORMS>{payforms}</PAYFORMS>"
+		if taxes:
+			inner += f"<TAXES>{taxes}</TAXES>"
+		return f"<{tag}>{inner}</{tag}>"
+
+	body = _section("ZREPREALIZ", realiz)
+	if returns and returns.get("count"):
+		body += _section("ZREPRETURN", returns)
+	zbody = ""
+	if service_input or service_output:
+		zbody = "<ZREPBODY>"
+		if service_input:
+			zbody += f"<SERVICEINPUT>{_fmt_sum(service_input)}</SERVICEINPUT>"
+		if service_output:
+			zbody += f"<SERVICEOUTPUT>{_fmt_sum(service_output)}</SERVICEOUTPUT>"
+		zbody += "</ZREPBODY>"
+
 	xml = (
 		'<?xml version="1.0" encoding="windows-1251"?>'
-		'<CHECK xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
-		'xsi:noNamespaceSchemaLocation="check01.xsd">'
-		+ _head_xml(head)
-		+ f"<CHECKTOTAL><SUM>{_fmt_sum(total)}</SUM></CHECKTOTAL>"
-		+ "<CHECKPAY>" + "".join(pay_rows) + "</CHECKPAY>"
-		+ "<CHECKBODY>" + "".join(body_rows) + "</CHECKBODY>"
-		+ "</CHECK>"
+		'<ZREP xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+		'xsi:noNamespaceSchemaLocation="zrep01.xsd">'
+		f"<ZREPHEAD>{_ordered(head, _ZREPHEAD_ORDER)}</ZREPHEAD>{body}{zbody}</ZREP>"
 	)
 	return xml.encode("windows-1251")
