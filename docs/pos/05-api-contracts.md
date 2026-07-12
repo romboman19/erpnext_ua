@@ -210,7 +210,7 @@ POS не реалізує ідентифікацію, лише викликає 
 ```
 POST customer.identify.begin  {channel: sms|call|telegram, phone}  → {request_id}
 POST customer.identify.confirm {request_id, code?}                 → {customer_id, verified: bool}
-POST customer.quick_create     {name, phone, loyalty_optin}        → {customer_id}
+POST customer.quick_create     {request_id, customer_name}         → {customer_id}
 GET  customer.loyalty_state    {customer_id}                       → {points, allowed_redeem, program}
 ```
 

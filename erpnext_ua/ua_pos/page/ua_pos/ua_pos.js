@@ -314,7 +314,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
         );
       });
       customer = await identificationApi("quick_create", {
-        phone: result.phone,
+        request_id: result.request_id,
         customer_name: customerName,
       });
     }
