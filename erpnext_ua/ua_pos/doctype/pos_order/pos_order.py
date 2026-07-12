@@ -2,7 +2,7 @@ import frappe
 from frappe.model.document import Document
 
 
-FINAL_STATES = {"Completed", "Completed Print Error", "Cancelled"}
+FINAL_STATES = {"Completed", "Completed Print Error", "Invoice Draft", "Cancelled"}
 
 
 class POSOrder(Document):

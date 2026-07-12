@@ -115,13 +115,13 @@ def session_state(pos_session_token: str) -> dict:
 	desk = frappe.db.get_value(
 		"POS Cash Desk",
 		session["cash_desk"],
-		["company", "warehouse", "terminal", "prro_cash_register"],
+		["company", "warehouse", "default_customer", "terminal", "prro_cash_register"],
 		as_dict=True,
 	) or {}
 	employee_name = frappe.db.get_value("Employee", session["employee"], "employee_name")
 	unfinished = frappe.get_all(
 		"POS Order",
-		filters={"cash_desk": session["cash_desk"], "status": ("not in", ("Completed", "Cancelled"))},
+		filters={"cash_desk": session["cash_desk"], "status": ("not in", ("Completed", "Invoice Draft", "Cancelled"))},
 		fields=["name", "status", "grand_total", "modified"],
 		order_by="modified desc",
 		limit=10,
@@ -403,7 +403,7 @@ def close_shift_begin(pos_session_token: str) -> dict:
 		frappe.throw("No open shift")
 	blocking = frappe.get_all(
 		"POS Order",
-		filters={"operational_shift": shift, "status": ("not in", ("Completed", "Cancelled"))},
+		filters={"operational_shift": shift, "status": ("not in", ("Completed", "Invoice Draft", "Cancelled"))},
 		pluck="name",
 	)
 	return {"shift": shift, "expected": _expected_cash(shift), "blocking_orders": blocking}
@@ -419,7 +419,7 @@ def close_shift_confirm(pos_session_token: str, denominations, idem_key: str, co
 	shift_name = active_shift(session["cash_desk"], for_update=True)
 	if not shift_name:
 		frappe.throw("No open shift")
-	if frappe.db.exists("POS Order", {"operational_shift": shift_name, "status": ("not in", ("Completed", "Cancelled"))}):
+	if frappe.db.exists("POS Order", {"operational_shift": shift_name, "status": ("not in", ("Completed", "Invoice Draft", "Cancelled"))}):
 		frappe.throw("Resolve unfinished POS orders before closing the shift")
 	doc = frappe.get_doc("POS Operational Shift", shift_name)
 	expected, counted = _expected_cash(shift_name), _count_total(rows)
@@ -830,6 +830,62 @@ def _validate_order_items(order):
 					item_code, warehouse, available, qty
 				)
 			)
+
+
+@frappe.whitelist()
+def create_draft_invoice(pos_session_token: str, order: str) -> dict:
+	"""Convert a cart to a draft non-stock Sales Invoice without posting or stock movement."""
+	session = get_session(pos_session_token)
+	doc = _owned_order(session, order)
+	if doc.draft_invoice:
+		si = frappe.get_doc("Sales Invoice", doc.draft_invoice)
+		return {"name": si.name, "grand_total": si.grand_total, "docstatus": si.docstatus, "order": doc.name}
+	if doc.status != "Building" or doc.order_type != "Sale":
+		frappe.throw(_("Рахунок можна створити лише з активного чека продажу"))
+	if not doc.items:
+		frappe.throw(_("Додайте хоча б один товар"))
+	desk = frappe.get_doc("POS Cash Desk", doc.cash_desk)
+	if not doc.customer or doc.customer == desk.default_customer:
+		frappe.throw(_("Спочатку виберіть або ідентифікуйте покупця"))
+	invoice_items = []
+	for row in doc.items:
+		gross = frappe.utils.flt(row.qty) * frappe.utils.flt(row.rate)
+		discount_percentage = frappe.utils.flt(row.discount_amount) * 100 / gross if gross else 0
+		invoice_items.append(
+			{
+				"item_code": row.item_code,
+				"qty": row.qty,
+				"uom": row.uom,
+				"price_list_rate": row.rate,
+				"rate": row.rate,
+				"discount_percentage": discount_percentage,
+				"warehouse": row.warehouse,
+			}
+		)
+	si = frappe.get_doc(
+		{
+			"doctype": "Sales Invoice",
+			"company": desk.company,
+			"customer": doc.customer,
+			"is_pos": 0,
+			"update_stock": 0,
+			"ignore_pricing_rule": 1,
+			"set_warehouse": desk.warehouse,
+			"ua_pos_order": doc.name,
+			"ua_pos_desk": desk.name,
+			"ua_pos_shift": doc.operational_shift,
+			"remarks": _("Створено з вікна касира {0}. Товар не видано, склад не списано.").format(doc.name),
+			"items": invoice_items,
+		}
+	)
+	si.set_missing_values()
+	si.insert(ignore_permissions=True)
+	doc.draft_invoice = si.name
+	doc.status = "Invoice Draft"
+	doc.save(ignore_permissions=True)
+	audit("draft_invoice_created", session, (doc.doctype, doc.name), {"sales_invoice": si.name})
+	frappe.db.commit()
+	return {"name": si.name, "grand_total": si.grand_total, "docstatus": si.docstatus, "order": doc.name}
 
 
 def _post_sales_invoice(order, desk):
