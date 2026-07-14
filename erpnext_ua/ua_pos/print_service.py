@@ -381,9 +381,10 @@ def render_fiscal_report(report: dict, printer, *, is_copy: bool = False) -> byt
 	)
 	if is_copy:
 		output.text("*** КОПІЯ ***", align="center", bold=True)
+	tax_number = report.get("tax_number") or report.get("tax_id")
 	for value in (
 		report.get("organization"),
-		f"РНОКПП/ЄДРПОУ: {report.get('tax_id')}" if report.get("tax_id") else None,
+		f"{report.get('tax_prefix') or 'ІД'} {tax_number}" if tax_number else None,
 		report.get("point_name"),
 		report.get("point_address"),
 	):
@@ -395,7 +396,7 @@ def render_fiscal_report(report: dict, printer, *, is_copy: bool = False) -> byt
 		output.text("НЕФІСКАЛЬНИЙ", align="center", bold=True)
 	if report.get("testing"):
 		output.text("ТЕСТОВИЙ РЕЖИМ", align="center", bold=True)
-	output.text(f"ПРРО: {report.get('cash_register_fiscal_number') or '—'}")
+	output.text(f"ФН ПРРО {report.get('cash_register_fiscal_number') or '—'}")
 	output.text(f"Локальний № ПРРО: {report.get('cash_desk_local_number') or '—'}")
 	output.text(f"Зміна: {report.get('shift') or '—'}")
 	if report.get("operational_shift"):
@@ -427,12 +428,16 @@ def render_fiscal_report(report: dict, printer, *, is_copy: bool = False) -> byt
 
 	if report.get("fiscal_number"):
 		output.rule()
-		output.text(f"Фіскальний № {report['fiscal_number']}", align="center", bold=True)
+		output.text(
+			f"{report.get('fiscal_number_label') or 'Фіскальний №'} {report['fiscal_number']}",
+			align="center",
+			bold=True,
+		)
 	if report.get("local_number"):
 		output.text(f"Локальний № {report['local_number']}", align="center")
 	if report.get("is_offline"):
 		output.text("ОФЛАЙН", align="center", bold=True)
-	output.text(f"Сформовано: {report.get('generated_at') or frappe.utils.now_datetime()}", align="center")
+	output.text(f"Надруковано: {report.get('generated_at') or frappe.utils.now_datetime()}", align="center")
 	payload = output.finish()
 	if len(payload) > MAX_PRINT_PAYLOAD:
 		frappe.throw("Сформований звіт перевищує ліміт друку 128 KiB")

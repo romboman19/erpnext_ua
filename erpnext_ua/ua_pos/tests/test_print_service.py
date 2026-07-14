@@ -123,6 +123,32 @@ class TestPrintService(unittest.TestCase):
 		self.assertIn("298.00 грн".encode("cp1251"), payload)
 		self.assertIn("Готівка в касі".encode("cp1251"), payload)
 
+	def test_render_z_report_labels_fiscal_fields_unambiguously(self):
+		printer = frappe._dict({"characters_per_line": 48, "encoding": "cp1251", "code_page": 46})
+		report = {
+			"report_type": "Z",
+			"title": "Z-ЗВІТ",
+			"organization": "КОЗЯРЧУК РОМАН",
+			"tax_prefix": "ІД",
+			"tax_number": "3423612974",
+			"cash_register_fiscal_number": "4000545102",
+			"cash_desk_local_number": 4,
+			"shift": "SHIFT-1",
+			"cashier": "Касир",
+			"opened_at": "14.07.2026 20:37:41",
+			"closed_at": "14.07.2026 21:07:59",
+			"fiscal_number": "7324103331",
+			"fiscal_number_label": "Фіскальний № Z-звіту",
+			"local_number": 3199,
+			"generated_at": "14.07.2026 21:44:55",
+		}
+		payload = render_fiscal_report(report, printer)
+		self.assertIn("ІД 3423612974".encode("cp1251"), payload)
+		self.assertIn("ФН ПРРО 4000545102".encode("cp1251"), payload)
+		self.assertIn("Фіскальний № Z-звіту 7324103331".encode("cp1251"), payload)
+		self.assertIn("Надруковано: 14.07.2026 21:44:55".encode("cp1251"), payload)
+		self.assertNotIn(b".998758", payload)
+
 
 if __name__ == "__main__":
 	unittest.main()

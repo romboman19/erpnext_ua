@@ -380,6 +380,16 @@ def _fiscal_xml_head(receipt) -> dict:
 	return {child.tag: child.text or "" for child in head}
 
 
+def _report_datetime(value) -> str:
+	"""Format fiscal-event timestamps for a human-readable report without microseconds."""
+	if not value:
+		return ""
+	try:
+		return frappe.utils.get_datetime(value).strftime("%d.%m.%Y %H:%M:%S")
+	except (TypeError, ValueError):
+		return str(value)
+
+
 def _fiscal_report_data(cash_desk: str, report_type: str, shift_name: str | None = None) -> dict:
 	"""Builds a printable snapshot from the immutable PRRO ledger."""
 	kind = str(report_type or "").strip().upper()
@@ -430,6 +440,7 @@ def _fiscal_report_data(cash_desk: str, report_type: str, shift_name: str | None
 		2,
 	)
 	document = opening if kind == "OPENING" else z_receipt if kind == "Z" else None
+	tax_number = head.get("IPN") or head.get("TIN") or frappe.db.get_value("FOP Profile", register.fop_profile, "tax_id")
 	titles = {
 		"OPENING": "ЧЕК ВІДКРИТТЯ ЗМІНИ",
 		"X": "X-ЗВІТ",
@@ -439,9 +450,11 @@ def _fiscal_report_data(cash_desk: str, report_type: str, shift_name: str | None
 		"report_type": kind,
 		"title": titles[kind],
 		"non_fiscal": kind == "X",
-		"generated_at": str(frappe.utils.now_datetime()),
+		"generated_at": _report_datetime(frappe.utils.now_datetime()),
 		"organization": head.get("ORGNM") or frappe.db.get_value("FOP Profile", register.fop_profile, "prro_registered_name"),
 		"tax_id": head.get("TIN") or frappe.db.get_value("FOP Profile", register.fop_profile, "tax_id"),
+		"tax_prefix": "ПН" if head.get("IPN") else "ІД",
+		"tax_number": tax_number,
 		"point_name": head.get("POINTNM") or register.unit_name,
 		"point_address": head.get("POINTADDR") or register.unit_address,
 		"cashier": head.get("CASHIER") or shift.cashier,
@@ -451,11 +464,12 @@ def _fiscal_report_data(cash_desk: str, report_type: str, shift_name: str | None
 		"shift": shift.name,
 		"operational_shift": shift.operational_shift,
 		"shift_status": shift.status,
-		"opened_at": str(shift.opened_at or ""),
-		"closed_at": str(shift.closed_at or ""),
+		"opened_at": _report_datetime(shift.opened_at),
+		"closed_at": _report_datetime(shift.closed_at),
 		"document_name": document.name if document else None,
 		"local_number": document.local_number if document else None,
 		"fiscal_number": document.fiscal_number if document else None,
+		"fiscal_number_label": "Фіскальний № Z-звіту" if kind == "Z" else "ЧЕК №",
 		"is_offline": int(document.is_offline or 0) if document else 0,
 		"testing": str(head.get("TESTING") or "").lower() == "true",
 		"receipts_count": int(totals["realiz"]["count"] + totals["returns"]["count"]),
