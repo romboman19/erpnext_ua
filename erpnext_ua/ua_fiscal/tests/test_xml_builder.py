@@ -70,6 +70,31 @@ class TestFiscalTotals(unittest.TestCase):
 		self.assertEqual(root.findtext("CHECKTOTAL/RNDSUM"), "-0.03")
 		self.assertEqual(root.findtext("CHECKTOTAL/NORNDSUM"), "12.57")
 
+	def test_card_and_excise_details_follow_official_xsd(self):
+		xml = xb.build_sale_check(
+			self._head(),
+			items=[{
+				"code": "ALC-1", "barcode": "4820000000001", "uktzed": "2203000100",
+				"name": "Товар", "uom": "шт", "qty": 1, "price": 100, "amount": 100,
+				"excise_labels": ["ABCD123456"],
+			}],
+			payments=[{
+				"code": 1, "name": "КАРТКА", "sum": 100,
+				"paysys": [{
+					"name": "VISA", "acquire_id": "MERCHANT-1", "acquire_name": "БАНК",
+					"transaction_id": "TXN-1", "transaction_date": "14072026203741",
+					"device_id": "TERM-1", "epz_details": "****1234", "auth_code": "A123",
+					"sum": 100,
+				}],
+			}],
+			total=100,
+		)
+		xb.validate_document(xml)
+		root = ET.fromstring(xml)
+		self.assertEqual(root.findtext("CHECKBODY/ROW/EXCISELABELS/ROW/EXCISELABEL"), "ABCD123456")
+		self.assertEqual(root.findtext("CHECKPAY/ROW/PAYSYS/ROW/POSTRANSDATE"), "14072026203741")
+		self.assertEqual(root.findtext("CHECKPAY/ROW/PAYSYS/ROW/DEVICEID"), "TERM-1")
+
 
 if __name__ == "__main__":
 	unittest.main()

@@ -187,7 +187,8 @@ def build_sale_check(
 ) -> bytes:
 	"""Чек реалізації/повернення (тип за DOCSUBTYPE у head).
 
-	items:    [{code, name, uom, qty, price, amount, uktzed?, unit_cd?, letters?}]
+	items:    [{code, name, uom, qty, price, amount, uktzed?, unit_cd?, letters?,
+	            excise_labels?, tobacco_weight?, tobacco_qty?, alcohol_strength?, alcohol_volume?}]
 	payments: [{code, name, sum, provided?, remains?}]  (code: 0-готівка, 1-картка)
 	taxes:    [{type, name, letter, prc, sign, turnover, sum}]  (лише для платників ПДВ)
 	"""
@@ -274,10 +275,25 @@ def build_sale_check(
 			row.append(f"<UNITCD>{escape(str(item['unit_cd']))}</UNITCD>")
 		row.append(f"<UNITNM>{escape(item.get('uom') or 'шт')}</UNITNM>")
 		row.append(f"<AMOUNT>{frappe.utils.flt(item['qty']):g}</AMOUNT>")
+		if item.get("tobacco_weight") is not None:
+			row.append(f"<TOBACCOWEIGHT>{frappe.utils.flt(item['tobacco_weight']):g}</TOBACCOWEIGHT>")
+		if item.get("tobacco_qty") is not None:
+			row.append(f"<TOBACCOQT>{int(item['tobacco_qty'])}</TOBACCOQT>")
+		if item.get("alcohol_strength") is not None:
+			row.append(f"<ALCOSTRENGTH>{frappe.utils.flt(item['alcohol_strength']):g}</ALCOSTRENGTH>")
+		if item.get("alcohol_volume") is not None:
+			row.append(f"<ALCOVOL>{frappe.utils.flt(item['alcohol_volume']):g}</ALCOVOL>")
 		row.append(f"<PRICE>{_fmt_sum(item['price'])}</PRICE>")
 		if item.get("letters"):
 			row.append(f"<LETTERS>{escape(item['letters'])}</LETTERS>")
 		row.append(f"<COST>{_fmt_sum(item['amount'])}</COST>")
+		excise_labels = [str(value).strip() for value in (item.get("excise_labels") or []) if str(value).strip()]
+		if excise_labels:
+			labels_xml = "".join(
+				f'<ROW ROWNUM="{index}"><EXCISELABEL>{escape(value)}</EXCISELABEL></ROW>'
+				for index, value in enumerate(excise_labels, start=1)
+			)
+			row.append(f"<EXCISELABELS>{labels_xml}</EXCISELABELS>")
 		row.append("</ROW>")
 		body_rows.append("".join(row))
 

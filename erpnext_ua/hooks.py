@@ -11,6 +11,7 @@ after_install = [
     "erpnext_ua.install.ensure_pos_setup",
 	"erpnext_ua.install.ensure_prro_setup",
 	"erpnext_ua.install.ensure_pos_printers",
+	"erpnext_ua.install.ensure_pos_page",
 ]
 
 after_migrate = [
@@ -18,6 +19,7 @@ after_migrate = [
     "erpnext_ua.install.ensure_pos_setup",
 	"erpnext_ua.install.ensure_prro_setup",
 	"erpnext_ua.install.ensure_pos_printers",
+	"erpnext_ua.install.ensure_pos_page",
 ]
 
 doctype_js = {

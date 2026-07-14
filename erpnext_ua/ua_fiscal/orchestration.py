@@ -119,12 +119,10 @@ def _cashier(kep_key: str) -> tuple[str, str]:
 	return values.subject_name or values.user, values.user
 
 
-def _build_qr(register_fn: str, fiscal_num: str, total, dt) -> str:
-	return (
-		f"https://cabinet.tax.gov.ua/cashregs/check?id={fiscal_num}"
-		f"&fn={register_fn}&sm={frappe.utils.flt(total):.2f}"
-		f"&date={dt.strftime('%Y%m%d')}&time={dt.strftime('%H%M')}"
-	)
+def _build_qr(register_fn: str, fiscal_num: str, total, dt, *, mac: str | None = None) -> str:
+	from erpnext_ua.ua_fiscal.receipt_format import build_verification_url
+
+	return build_verification_url(register_fn, fiscal_num, total, dt, mac=mac)
 
 
 def _kind_label(kind: str) -> str:
@@ -823,7 +821,13 @@ def _queue_offline_sale(
 	receipt = _queue_signed_offline(receipt, xml, kep_key, client, session, financial=True)
 	receipt.db_set(
 		"qr_data",
-		_build_qr(register.fiscal_number, fiscal_number, total, dt),
+		_build_qr(
+			register.fiscal_number,
+			fiscal_number,
+			total,
+			dt,
+			mac=receipt.signed_document_hash,
+		),
 		update_modified=False,
 	)
 	receipt.reload()

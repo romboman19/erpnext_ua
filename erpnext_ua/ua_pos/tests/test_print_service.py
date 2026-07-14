@@ -5,7 +5,13 @@ from unittest.mock import patch
 import frappe
 
 from erpnext_ua.ua_pos.doctype.pos_printer.pos_printer import is_lan_address
-from erpnext_ua.ua_pos.print_service import EscPosReceipt, render_fiscal_report, render_order_receipt
+from erpnext_ua.ua_pos.print_service import (
+	EscPosReceipt,
+	_qr_svg_data_uri,
+	fiscal_snapshot,
+	render_fiscal_report,
+	render_order_receipt,
+)
 
 
 class TestPrintService(unittest.TestCase):
@@ -27,12 +33,18 @@ class TestPrintService(unittest.TestCase):
 		self.assertIn(b"1P0https://example.invalid/check/1", payload)
 		self.assertTrue(payload.endswith(b"\x1dV\x00"))
 
+	def test_browser_qr_is_generated_locally_as_svg(self):
+		uri = _qr_svg_data_uri("https://cabinet.tax.gov.ua/cashregs/check?id=1")
+		self.assertTrue(uri.startswith("data:image/svg+xml;base64,"))
+		self.assertGreater(len(uri), 500)
+
 	def test_render_fiscal_receipt_uses_immutable_xml(self):
 		xml = (
 			'<?xml version="1.0" encoding="windows-1251"?>'
 			"<CHECK><CHECKHEAD><TIN>3184710691</TIN><ORGNM>ФОП Тест</ORGNM>"
 			"<POINTNM>Магазин</POINTNM><POINTADDR>м. Рівне</POINTADDR><CASHIER>Касир</CASHIER>"
-			"<ORDERDATE>14072026</ORDERDATE><ORDERTIME>131500</ORDERTIME></CHECKHEAD>"
+			"<ORDERDATE>14072026</ORDERDATE><ORDERTIME>131500</ORDERTIME>"
+			"<CASHREGISTERNUM>4000545102</CASHREGISTERNUM></CHECKHEAD>"
 			"<CHECKTOTAL><SUM>450.00</SUM></CHECKTOTAL>"
 			"<CHECKPAY><ROW><PAYFORMNM>ГОТІВКА</PAYFORMNM><SUM>450.00</SUM></ROW></CHECKPAY>"
 			"<CHECKBODY><ROW><NAME>Ніж</NAME><AMOUNT>1</AMOUNT><PRICE>450.00</PRICE>"
@@ -67,6 +79,18 @@ class TestPrintService(unittest.TestCase):
 		self.assertIn("ФОП Тест".encode("cp1251"), payload)
 		self.assertIn(b"6000000001", payload)
 		self.assertIn("КОПІЯ".encode("cp1251"), payload)
+		self.assertIn("ІД 3184710691".encode("cp1251"), payload)
+		self.assertIn("ЧЕК № 6000000001".encode("cp1251"), payload)
+		self.assertIn("14.07.2026 13:15:00".encode("cp1251"), payload)
+		self.assertIn("ОНЛАЙН".encode("cp1251"), payload)
+		self.assertIn("ФН ПРРО 4000545102".encode("cp1251"), payload)
+
+		snapshot = fiscal_snapshot(receipt)
+		self.assertEqual(snapshot["tax_prefix"], "ІД")
+		self.assertEqual(
+			snapshot["qr_data"],
+			"https://cabinet.tax.gov.ua/cashregs/check?date=20260714&time=131500&id=6000000001&sm=450.00&fn=4000545102",
+		)
 
 	def test_render_x_report_contains_shift_totals(self):
 		printer = frappe._dict({"characters_per_line": 48, "encoding": "cp1251", "code_page": 46})

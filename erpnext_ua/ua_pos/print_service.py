@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import base64
+import io
 import socket
 import textwrap
 import xml.etree.ElementTree as ET
+from datetime import datetime
 
 import frappe
 
@@ -73,7 +75,35 @@ def _xml_text(parent, path: str, default=""):
 	return element.text if element is not None and element.text is not None else default
 
 
-def _fiscal_snapshot(receipt) -> dict:
+def _receipt_datetime(order_date: str, order_time: str) -> datetime:
+	try:
+		return datetime.strptime(f"{order_date}{order_time}", "%d%m%Y%H%M%S")
+	except (TypeError, ValueError) as exc:
+		raise frappe.ValidationError("У фіскальному XML відсутня коректна дата або час операції") from exc
+
+
+def _qr_svg_data_uri(value: str) -> str:
+	"""Render QR locally; no receipt data is sent to a third-party service."""
+	try:
+		import qrcode
+		import qrcode.image.svg
+	except ImportError as exc:
+		raise frappe.ValidationError("Не встановлено залежність qrcode для друку фіскального чека") from exc
+	image = qrcode.make(
+		value,
+		image_factory=qrcode.image.svg.SvgPathImage,
+		box_size=4,
+		border=2,
+	)
+	buffer = io.BytesIO()
+	image.save(buffer)
+	return "data:image/svg+xml;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def fiscal_snapshot(receipt, *, include_qr_image: bool = False) -> dict:
+	"""Parse the immutable XML that was signed and accepted by the fiscal server."""
+	if isinstance(receipt, str):
+		receipt = frappe.get_doc("PRRO Receipt", receipt)
 	try:
 		root = ET.fromstring(receipt.receipt_xml.encode("windows-1251"))
 	except (AttributeError, UnicodeEncodeError, ET.ParseError) as exc:
@@ -81,29 +111,122 @@ def _fiscal_snapshot(receipt) -> dict:
 	head = root.find("CHECKHEAD")
 	items = []
 	for row in root.findall("./CHECKBODY/ROW"):
+		excise_labels = [_xml_text(label, "EXCISELABEL") for label in row.findall("./EXCISELABELS/ROW")]
 		items.append(
 			{
+				"code": _xml_text(row, "CODE"),
+				"barcode": _xml_text(row, "BARCODE"),
+				"uktzed": _xml_text(row, "UKTZED"),
+				"dkpp": _xml_text(row, "DKPP"),
 				"name": _xml_text(row, "NAME"),
+				"description": _xml_text(row, "DESCRIPTION"),
+				"uom": _xml_text(row, "UNITNM"),
 				"qty": _xml_text(row, "AMOUNT"),
 				"price": _xml_text(row, "PRICE"),
+				"letters": _xml_text(row, "LETTERS"),
 				"amount": _xml_text(row, "COST"),
+				"excise_labels": [value for value in excise_labels if value],
+				"tobacco_weight": _xml_text(row, "TOBACCOWEIGHT"),
+				"tobacco_qty": _xml_text(row, "TOBACCOQT"),
+				"alcohol_strength": _xml_text(row, "ALCOSTRENGTH"),
+				"alcohol_volume": _xml_text(row, "ALCOVOL"),
 			}
 		)
 	payments = []
 	for row in root.findall("./CHECKPAY/ROW"):
-		payments.append({"name": _xml_text(row, "PAYFORMNM"), "amount": _xml_text(row, "SUM")})
-	return {
+		code = int(_xml_text(row, "PAYFORMCD", "0") or 0)
+		paysys = []
+		for payment_system in row.findall("./PAYSYS/ROW"):
+			paysys.append(
+				{
+					"tax_number": _xml_text(payment_system, "TAXNUM"),
+					"name": _xml_text(payment_system, "NAME"),
+					"acquirer_id": _xml_text(payment_system, "ACQUIREID"),
+					"acquirer_tax_number": _xml_text(payment_system, "ACQUIREPN"),
+					"acquirer_name": _xml_text(payment_system, "ACQUIRENM"),
+					"transaction_id": _xml_text(payment_system, "ACQUIRETRANSID"),
+					"transaction_date": _xml_text(payment_system, "POSTRANSDATE"),
+					"transaction_number": _xml_text(payment_system, "POSTRANSNUM"),
+					"device_id": _xml_text(payment_system, "DEVICEID"),
+					"epz_details": _xml_text(payment_system, "EPZDETAILS"),
+					"auth_code": _xml_text(payment_system, "AUTHCD"),
+					"sum": _xml_text(payment_system, "SUM"),
+					"commission": _xml_text(payment_system, "COMMISSION"),
+				}
+			)
+		payments.append(
+			{
+				"code": code,
+				"form": "ГОТІВКА" if code == 0 else ("БЕЗГОТІВКОВА" if code == 1 else "ІНШЕ"),
+				"means": _xml_text(row, "PAYFORMNM"),
+				"amount": _xml_text(row, "SUM"),
+				"provided": _xml_text(row, "PROVIDED"),
+				"change": _xml_text(row, "REMAINS"),
+				"currency": "UAH",
+				"paysys": paysys,
+			}
+		)
+	taxes = []
+	for row in root.findall("./CHECKTAX/ROW"):
+		taxes.append(
+			{
+				"type": int(_xml_text(row, "TYPE", "0") or 0),
+				"name": _xml_text(row, "NAME"),
+				"letter": _xml_text(row, "LETTER"),
+				"rate": _xml_text(row, "PRC"),
+				"amount": _xml_text(row, "SUM"),
+			}
+		)
+	order_date = _xml_text(head, "ORDERDATE")
+	order_time = _xml_text(head, "ORDERTIME")
+	dt = _receipt_datetime(order_date, order_time)
+	register_number = _xml_text(head, "CASHREGISTERNUM")
+	total = _xml_text(root, "./CHECKTOTAL/SUM", str(receipt.total_amount or 0))
+	is_offline = bool(getattr(receipt, "is_offline", 0)) or _xml_text(head, "OFFLINE").lower() == "true"
+	from erpnext_ua.ua_fiscal.receipt_format import build_verification_url, offline_control_number
+
+	qr_data = build_verification_url(
+		register_number,
+		receipt.fiscal_number,
+		total,
+		dt,
+		mac=getattr(receipt, "signed_document_hash", None) if is_offline else None,
+	)
+	snapshot = {
 		"seller": _xml_text(head, "ORGNM"),
 		"tax_id": _xml_text(head, "TIN"),
+		"vat_number": _xml_text(head, "IPN"),
+		"tax_prefix": "ПН" if _xml_text(head, "IPN") else "ІД",
+		"tax_number": _xml_text(head, "IPN") or _xml_text(head, "TIN"),
 		"point": _xml_text(head, "POINTNM"),
 		"address": _xml_text(head, "POINTADDR"),
 		"cashier": _xml_text(head, "CASHIER"),
-		"date": _xml_text(head, "ORDERDATE"),
-		"time": _xml_text(head, "ORDERTIME"),
+		"date": dt.strftime("%d.%m.%Y"),
+		"time": dt.strftime("%H:%M:%S"),
+		"register_number": register_number,
+		"operation": "ПОВЕРНЕННЯ" if _xml_text(head, "DOCSUBTYPE") == "1" else "ПРОДАЖ",
+		"title": "ВИДАТКОВИЙ ЧЕК" if _xml_text(head, "DOCSUBTYPE") == "1" else "ФІСКАЛЬНИЙ ЧЕК",
+		"mode": "ОФЛАЙН" if is_offline else "ОНЛАЙН",
+		"offline_control_number": offline_control_number(receipt.fiscal_number) if is_offline else "",
+		"testing": _xml_text(head, "TESTING").lower() == "true",
 		"items": items,
 		"payments": payments,
-		"total": _xml_text(root, "./CHECKTOTAL/SUM", str(receipt.total_amount or 0)),
+		"taxes": taxes,
+		"total": total,
+		"rounding": _xml_text(root, "./CHECKTOTAL/RNDSUM"),
+		"before_rounding": _xml_text(root, "./CHECKTOTAL/NORNDSUM"),
+		"change": next((payment["change"] for payment in payments if payment["change"]), "0.00"),
+		"fiscal_number": receipt.fiscal_number,
+		"local_number": receipt.local_number,
+		"qr_data": qr_data,
 	}
+	if include_qr_image:
+		snapshot["qr_svg"] = _qr_svg_data_uri(qr_data)
+	return snapshot
+
+
+# Backward-compatible private name used by older callers/tests.
+_fiscal_snapshot = fiscal_snapshot
 
 
 def render_order_receipt(order, printer, *, is_copy: bool = False) -> bytes:
@@ -123,17 +246,15 @@ def render_order_receipt(order, printer, *, is_copy: bool = False) -> bytes:
 	)
 	if is_copy:
 		output.text("*** КОПІЯ ***", align="center", bold=True)
-	output.text(
-		"ФІСКАЛЬНИЙ ЧЕК" + (" · ОФЛАЙН" if receipt and receipt.is_offline else "")
-		if receipt
-		else "НЕФІСКАЛЬНИЙ ТОВАРНИЙ ЧЕК",
-		align="center",
-		bold=True,
-	)
 
 	if receipt:
-		snapshot = _fiscal_snapshot(receipt)
-		for value in (snapshot["seller"], f"РНОКПП/ЄДРПОУ: {snapshot['tax_id']}", snapshot["point"], snapshot["address"]):
+		snapshot = fiscal_snapshot(receipt)
+		for value in (
+			snapshot["seller"],
+			snapshot["point"],
+			snapshot["address"],
+			f"{snapshot['tax_prefix']} {snapshot['tax_number']}",
+		):
 			if value:
 				output.text(value, align="center")
 		output.text(f"Касир: {snapshot['cashier']}")
@@ -141,6 +262,7 @@ def render_order_receipt(order, printer, *, is_copy: bool = False) -> bytes:
 		payments = snapshot["payments"]
 		total = snapshot["total"]
 	else:
+		output.text("НЕФІСКАЛЬНИЙ ТОВАРНИЙ ЧЕК", align="center", bold=True)
 		desk = frappe.get_doc("POS Cash Desk", order.cash_desk)
 		company = frappe.db.get_value("Company", desk.company, ["company_name", "tax_id"], as_dict=True) or {}
 		output.text(company.get("company_name") or desk.company, align="center", bold=True)
@@ -161,24 +283,89 @@ def render_order_receipt(order, printer, *, is_copy: bool = False) -> bytes:
 	output.rule()
 	for item in items:
 		output.text(item["name"])
-		output.pair(f"{item['qty']} × {frappe.utils.flt(item['price']):.2f}", _money(item["amount"]))
+		if item.get("description"):
+			output.text(item["description"])
+		if item.get("uktzed"):
+			output.text(f"УКТ ЗЕД {item['uktzed']}")
+		elif item.get("dkpp"):
+			output.text(f"ДКПП {item['dkpp']}")
+		if item.get("barcode"):
+			output.text(f"Штрихкод {item['barcode']}")
+		for label in item.get("excise_labels") or []:
+			output.text(f"Акцизна марка {label}")
+		amount = _money(item["amount"])
+		if item.get("letters"):
+			amount += f" {item['letters']}"
+		output.pair(
+			f"{item['qty']} {item.get('uom') or ''} × {frappe.utils.flt(item['price']):.2f}",
+			amount,
+		)
 	output.rule()
-	output.pair("РАЗОМ", _money(total), bold=True)
-	for payment in payments:
-		output.pair(payment["name"], _money(payment["amount"]))
-	if frappe.utils.flt(order.change_amount):
-		output.pair("Решта", _money(order.change_amount))
+	output.pair("УСЬОГО", f"{frappe.utils.flt(total):.2f} UAH", bold=True)
+	if receipt:
+		for tax in snapshot["taxes"]:
+			label = "ПДВ" if tax["type"] == 0 else (tax["name"] or "ПОДАТОК")
+			output.pair(
+				f"{label} {tax['letter']} {frappe.utils.flt(tax['rate']):g}%".strip(),
+				f"{frappe.utils.flt(tax['amount']):.2f} UAH",
+			)
+		if snapshot["rounding"]:
+			output.pair("Заокруглення", f"{frappe.utils.flt(snapshot['rounding']):.2f} UAH")
+		output.pair("ДО СПЛАТИ", f"{frappe.utils.flt(total):.2f} UAH", bold=True)
+		for payment in payments:
+			output.pair(payment["form"], f"{frappe.utils.flt(payment['amount']):.2f} {payment['currency']}")
+			if payment["means"] and payment["means"].upper() != payment["form"]:
+				output.text(f"Засіб оплати: {payment['means']}")
+			for payment_system in payment["paysys"]:
+				merchant = payment_system["name"] or payment_system["tax_number"]
+				acquirer = payment_system["acquirer_name"] or payment_system["acquirer_id"]
+				if merchant:
+					output.text(f"Торговець: {merchant}")
+				if acquirer:
+					output.text(f"Еквайр: {acquirer}")
+				if payment_system["device_id"]:
+					output.text(f"Платіжний пристрій: {payment_system['device_id']}")
+				if payment_system["commission"]:
+					output.text(f"Комісія: {frappe.utils.flt(payment_system['commission']):.2f} UAH")
+				output.text(f"Вид операції: {snapshot['operation']}")
+				if payment_system["epz_details"]:
+					output.text(f"ЕПЗ {payment_system['epz_details']}")
+				payment_details = " ".join(
+					value
+					for value in (
+						payment_system["auth_code"],
+						payment_system["transaction_number"],
+						payment_system["transaction_id"],
+					)
+					if value
+				)
+				if payment_details:
+					output.text(f"ПЛАТІЖНА СИСТЕМА {payment_details}")
+		if any(payment["code"] == 0 for payment in payments):
+			output.pair("РЕШТА", f"{frappe.utils.flt(snapshot['change']):.2f} UAH")
+	else:
+		for payment in payments:
+			output.pair(payment["name"], _money(payment["amount"]))
+		if frappe.utils.flt(order.change_amount):
+			output.pair("Решта", _money(order.change_amount))
 
 	if receipt:
 		output.rule()
-		output.text(f"Фіскальний № {receipt.fiscal_number}", align="center", bold=True)
+		output.text(f"ЧЕК № {receipt.fiscal_number}", align="center", bold=True)
 		output.text(f"Локальний № {receipt.local_number}", align="center")
-		if receipt.qr_data:
-			output.qr(receipt.qr_data)
+		output.text(f"{snapshot['date']} {snapshot['time']}", align="center")
+		if snapshot["qr_data"]:
+			output.qr(snapshot["qr_data"])
+		output.text(snapshot["mode"], align="center", bold=True)
+		if snapshot["offline_control_number"]:
+			output.text(f"Контрольне число: {snapshot['offline_control_number']}", align="center")
+		output.text(f"ФН ПРРО {snapshot['register_number']}", align="center")
+		output.text(snapshot["title"], align="center", bold=True)
 	output.text(f"Чек {order.name}", align="center")
 	output.text("Код для повернення:", align="center")
 	output.text(order.lookup_token, align="center", bold=True)
-	output.text(str(frappe.utils.now_datetime()), align="center")
+	if not receipt:
+		output.text(str(frappe.utils.now_datetime()), align="center")
 	payload = output.finish()
 	if len(payload) > MAX_PRINT_PAYLOAD:
 		frappe.throw("Сформований чек перевищує ліміт друку 128 KiB")
