@@ -10,3 +10,26 @@ class PRROReceipt(Document):
 	def on_trash(self):
 		if self.status not in {"Draft", "Cancelled"}:
 			frappe.throw("Фіскальний журнал є незмінним; доставлені, офлайн або невизначені документи видаляти не можна")
+
+
+@frappe.whitelist()
+def receipt_preview(name: str) -> dict:
+	doc = frappe.get_doc("PRRO Receipt", name)
+	if not frappe.has_permission("PRRO Receipt", "read", doc=doc):
+		frappe.throw("Недостатньо прав для перегляду фіскального чека", frappe.PermissionError)
+	if doc.status not in {"Fiscalized", "Offline"}:
+		frappe.throw("Друк доступний лише для підтвердженого фіскального документа")
+	if doc.receipt_kind not in {"Sale", "Return", "Storno"}:
+		frappe.throw("Цей документ ПРРО не є товарним чеком продажу або повернення")
+	if not doc.receipt_xml:
+		frappe.throw("У фіскального документа відсутній XML snapshot")
+
+	from erpnext_ua.ua_pos.print_service import fiscal_snapshot, render_browser_fiscal_receipt
+
+	snapshot = fiscal_snapshot(doc, include_qr_image=True)
+	lookup_token = frappe.db.get_value("POS Order", doc.pos_order, "lookup_token") if doc.pos_order else None
+	return {
+		"name": doc.name,
+		"fiscal_number": doc.fiscal_number,
+		"html": render_browser_fiscal_receipt(snapshot, lookup_token=lookup_token),
+	}

@@ -23,8 +23,9 @@ after_migrate = [
 ]
 
 doctype_js = {
-    "Sales Invoice": "ua_fiscal/doctype_js/sales_invoice_fiscal.js",
-    "PB POS Terminal": "ua_pos/public/js/pb_pos_terminal.js",
+	"Sales Invoice": "ua_fiscal/doctype_js/sales_invoice_fiscal.js",
+	"PB POS Terminal": "ua_pos/public/js/pb_pos_terminal.js",
+	"PRRO Receipt": "ua_fiscal/doctype_js/prro_receipt.js",
 }
 
 doc_events = {

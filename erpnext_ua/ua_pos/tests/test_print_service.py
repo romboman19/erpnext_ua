@@ -9,6 +9,7 @@ from erpnext_ua.ua_pos.print_service import (
 	EscPosReceipt,
 	_qr_svg_data_uri,
 	fiscal_snapshot,
+	render_browser_fiscal_receipt,
 	render_fiscal_report,
 	render_order_receipt,
 )
@@ -88,13 +89,20 @@ class TestPrintService(unittest.TestCase):
 		self.assertIn("ГОТІВКА".encode("cp1251"), payload)
 		self.assertNotIn(b"Cash", payload)
 
-		snapshot = fiscal_snapshot(receipt)
+		snapshot = fiscal_snapshot(receipt, include_qr_image=True)
 		self.assertEqual(snapshot["tax_prefix"], "ІД")
 		self.assertEqual(snapshot["payments"][0]["means"], "ГОТІВКА")
 		self.assertEqual(
 			snapshot["qr_data"],
 			"https://cabinet.tax.gov.ua/cashregs/check?date=20260714&time=131500&id=6000000001&sm=450.00&fn=4000545102",
 		)
+		html = render_browser_fiscal_receipt(snapshot, lookup_token="return-token")
+		self.assertIn("ГОТІВКА", html)
+		self.assertNotIn("Cash", html)
+		self.assertIn("ЧЕК № 6000000001", html)
+		self.assertIn("ФН ПРРО 4000545102", html)
+		self.assertIn("return-token", html)
+		self.assertIn("data:image/svg+xml;base64,", html)
 
 	def test_render_x_report_contains_shift_totals(self):
 		printer = frappe._dict({"characters_per_line": 48, "encoding": "cp1251", "code_page": 46})

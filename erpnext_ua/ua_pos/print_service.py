@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import html
 import io
 import socket
 import textwrap
@@ -226,6 +227,121 @@ def fiscal_snapshot(receipt, *, include_qr_image: bool = False) -> dict:
 	if include_qr_image:
 		snapshot["qr_svg"] = _qr_svg_data_uri(qr_data)
 	return snapshot
+
+
+def render_browser_fiscal_receipt(snapshot: dict, *, lookup_token: str | None = None) -> str:
+	"""Render a safe browser/print preview from the immutable fiscal snapshot."""
+	def esc(value) -> str:
+		return html.escape(str(value or ""), quote=True)
+
+	def money(value) -> str:
+		return f"{frappe.utils.flt(value):.2f}"
+
+	item_rows = []
+	for row in snapshot.get("items") or []:
+		codes = []
+		if row.get("uktzed"):
+			codes.append(f"УКТ ЗЕД {esc(row['uktzed'])}")
+		if row.get("dkpp"):
+			codes.append(f"ДКПП {esc(row['dkpp'])}")
+		if row.get("barcode"):
+			codes.append(f"Штрихкод {esc(row['barcode'])}")
+		codes.extend(f"Акцизна марка {esc(value)}" for value in row.get("excise_labels") or [])
+		code_html = f"<br><small>{'<br>'.join(codes)}</small>" if codes else ""
+		description = f"<br>{esc(row['description'])}" if row.get("description") else ""
+		item_rows.append(
+			"<tr><td>"
+			f"<b>{esc(row.get('name'))}</b>{description}{code_html}<br>"
+			f"{esc(row.get('qty'))} {esc(row.get('uom'))} × {money(row.get('price'))}"
+			f"</td><td>{money(row.get('amount'))} UAH {esc(row.get('letters'))}</td></tr>"
+		)
+
+	tax_rows = []
+	for row in snapshot.get("taxes") or []:
+		label = "ПДВ" if int(row.get("type") or 0) == 0 else (row.get("name") or "ПОДАТОК")
+		tax_rows.append(
+			f"<tr><td>{esc(label)} {esc(row.get('letter'))} {money(row.get('rate'))}%</td>"
+			f"<td>{money(row.get('amount'))} UAH</td></tr>"
+		)
+
+	payment_rows = []
+	for row in snapshot.get("payments") or []:
+		means = ""
+		if row.get("means") and str(row["means"]).upper() != str(row.get("form") or "").upper():
+			means = f"<br><small>Засіб оплати: {esc(row['means'])}</small>"
+		details = []
+		if row.get("provided") not in (None, ""):
+			details.append(f"ОТРИМАНО: {money(row['provided'])} {esc(row.get('currency'))}")
+		if row.get("change") not in (None, ""):
+			details.append(f"РЕШТА: {money(row['change'])} {esc(row.get('currency'))}")
+		for payment_system in row.get("paysys") or []:
+			merchant = payment_system.get("name") or payment_system.get("tax_number")
+			acquirer = payment_system.get("acquirer_name") or payment_system.get("acquirer_id")
+			if merchant:
+				details.append(f"Торговець: {esc(merchant)}")
+			if acquirer:
+				details.append(f"Еквайр: {esc(acquirer)}")
+			if payment_system.get("device_id"):
+				details.append(f"Платіжний пристрій: {esc(payment_system['device_id'])}")
+			if payment_system.get("epz_details"):
+				details.append(f"ЕПЗ: {esc(payment_system['epz_details'])}")
+			if payment_system.get("auth_code"):
+				details.append(f"Код авторизації: {esc(payment_system['auth_code'])}")
+			if payment_system.get("transaction_number"):
+				details.append(f"Номер операції: {esc(payment_system['transaction_number'])}")
+			if payment_system.get("transaction_id"):
+				details.append(f"Ідентифікатор операції: {esc(payment_system['transaction_id'])}")
+			if payment_system.get("commission"):
+				details.append(f"Комісія: {money(payment_system['commission'])} {esc(row.get('currency'))}")
+		detail_html = f"<br><small>{'<br>'.join(details)}</small>" if details else ""
+		payment_rows.append(
+			f"<tr><td>{esc(row.get('form'))}{means}{detail_html}</td>"
+			f"<td>{money(row.get('amount'))} {esc(row.get('currency'))}</td></tr>"
+		)
+
+	qr = ""
+	if snapshot.get("qr_svg"):
+		qr = (
+			'<div class="fiscal-center fiscal-qr">'
+			f'<img src="{esc(snapshot["qr_svg"])}" alt="QR перевірки чека">'
+			f'<div class="fiscal-muted fiscal-url">{esc(snapshot.get("qr_data"))}</div></div>'
+		)
+	rounding = ""
+	if frappe.utils.flt(snapshot.get("rounding")):
+		rounding = f"<tr><td>Заокруглення</td><td>{money(snapshot['rounding'])} UAH</td></tr>"
+	offline_control = ""
+	if snapshot.get("offline_control_number"):
+		offline_control = f"<br>Контрольне число: {esc(snapshot['offline_control_number'])}"
+	lookup = ""
+	if lookup_token:
+		lookup = (
+			'<p class="fiscal-center fiscal-muted">Код чека для повернення:<br>'
+			f"<b>{esc(lookup_token)}</b></p>"
+		)
+
+	return (
+		'<div class="fiscal-receipt">'
+		f'<div class="fiscal-center"><b>{esc(snapshot.get("seller"))}</b><br>'
+		f'{esc(snapshot.get("point"))}<br>{esc(snapshot.get("address"))}<br>'
+		f'{esc(snapshot.get("tax_prefix"))} {esc(snapshot.get("tax_number"))}<br>'
+		f'<span class="fiscal-muted">Касир: {esc(snapshot.get("cashier"))}</span></div>'
+		+ ('<p class="fiscal-center"><b>ТЕСТОВИЙ РЕЖИМ</b></p>' if snapshot.get("testing") else "")
+		+ f'<table class="fiscal-table">{"".join(item_rows)}</table>'
+		+ '<table class="fiscal-table">'
+		+ f'<tr><td><b>УСЬОГО</b></td><td><b>{money(snapshot.get("total"))} UAH</b></td></tr>'
+		+ "".join(tax_rows)
+		+ rounding
+		+ f'<tr><td><b>ДО СПЛАТИ</b></td><td><b>{money(snapshot.get("total"))} UAH</b></td></tr></table>'
+		+ f'<table class="fiscal-table">{"".join(payment_rows)}</table>'
+		+ f'<p class="fiscal-center"><b>ЧЕК № {esc(snapshot.get("fiscal_number"))}</b><br>'
+		+ f'Локальний № {esc(snapshot.get("local_number"))}<br>'
+		+ f'{esc(snapshot.get("date"))} {esc(snapshot.get("time"))}</p>'
+		+ qr
+		+ f'<p class="fiscal-center"><b>{esc(snapshot.get("mode"))}</b>{offline_control}<br>'
+		+ f'ФН ПРРО {esc(snapshot.get("register_number"))}<br><b>{esc(snapshot.get("title"))}</b></p>'
+		+ lookup
+		+ "</div>"
+	)
 
 
 # Backward-compatible private name used by older callers/tests.
