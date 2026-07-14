@@ -10,7 +10,7 @@ import frappe
 
 from erpnext_ua.ua_fiscal import orchestration as orch
 from erpnext_ua.ua_fiscal import xml_builder as xb
-from erpnext_ua.ua_fiscal.fiscal_client import FiscalServerError
+from erpnext_ua.ua_fiscal.fiscal_client import FiscalServerError, FiscalTransportError
 
 TESTNAME = "_prro_selftest"
 
@@ -47,6 +47,8 @@ class FakeFiscalClient:
 		self.device_calls = 0
 		self.state_calls = 0
 		self.reject_next = False
+		self.uncertain_next = False
+		self.documents = {}
 
 	def device_register(self, fiscal_number, device_id, kep_key, forced=False):
 		assert len(device_id) == 64 and not forced
@@ -66,7 +68,7 @@ class FakeFiscalClient:
 		}
 
 	def document_info_by_local_number(self, fiscal_number, local_number, kep_key):
-		return None
+		return self.documents.get(int(local_number))
 
 	def sign(self, xml: bytes, kep_key: str, *, online: bool = True) -> bytes:
 		xb.validate_document(xml)  # кине ValueError, якщо XML невалідний
@@ -93,6 +95,11 @@ class FakeFiscalClient:
 			self.shift_state = 0
 		self.next_local += 1
 		self.counter += 1
+		local_number = int(root.findtext(".//ORDERNUM"))
+		self.documents[local_number] = {"NumFiscal": str(self.counter)}
+		if self.uncertain_next:
+			self.uncertain_next = False
+			raise FiscalTransportError("test timeout after DPS accepted document", uncertain=True)
 		return (
 			'<?xml version="1.0" encoding="windows-1251"?>'
 			'<TICKET xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
@@ -130,8 +137,26 @@ def run():
 
 	client = FakeFiscalClient()
 
-	shift_name = orch.open_shift(TESTNAME, kep.name, client=client)
+	# DPS accepted the opening document but the transport timed out. Recovery
+	# must restore both the receipt and the shift/register state idempotently.
+	client.uncertain_next = True
+	try:
+		orch.open_shift(TESTNAME, kep.name, client=client)
+	except FiscalTransportError:
+		pass
+	else:
+		raise AssertionError("Тестовий transport timeout мав перервати першу відповідь")
+	opening = frappe.get_doc(
+		"PRRO Receipt", {"cash_register": TESTNAME, "receipt_kind": "Open Shift"}
+	)
+	assert opening.status == "Uncertain"
+	orch.reconcile_receipt(opening.name, client=client)
+	opening.reload()
+	shift_name = opening.shift
+	assert opening.status == "Fiscalized"
+	assert opening.receipt_type == "Відкриття зміни"
 	assert frappe.db.get_value("PRRO Shift", shift_name, "status") == "Open"
+	assert frappe.db.get_value("PRRO Cash Register", TESTNAME, "current_shift") == shift_name
 
 	r1 = orch.fiscalize_sale(
 		TESTNAME, kep.name,

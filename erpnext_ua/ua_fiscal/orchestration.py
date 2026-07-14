@@ -133,7 +133,12 @@ def _kind_label(kind: str) -> str:
 		"Return": "Повернення",
 		"Service In": "Службове внесення",
 		"Service Out": "Службова видача",
-	}.get(kind, "Продаж")
+		"Open Shift": "Відкриття зміни",
+		"Close Shift": "Закриття зміни",
+		"Z Report": "Z-звіт",
+		"Offline Begin": "Початок офлайн",
+		"Offline End": "Завершення офлайн",
+	}.get(kind, kind)
 
 
 def _idem_key(prefix: str, register: str, reference: str | None) -> str:
@@ -560,22 +565,13 @@ def open_shift(
 		idem_key=_idem_key("open-shift", register.name, shift.name),
 	)
 	try:
-		ticket = _send_online(client, receipt, xml, kep_key)
+		_send_online(client, receipt, xml, kep_key)
 	except Exception:
 		shift.db_set("status", "Error", update_modified=False)
 		frappe.db.commit()
 		raise
-	_update_offline_reserve(register, ticket)
-	shift.db_set("status", "Open", update_modified=False)
-	shift.db_set("opened_at", frappe.utils.now_datetime(), update_modified=False)
-	shift.db_set("opening_fiscal_number", ticket["order_tax_num"], update_modified=False)
-	shift.db_set("opening_local_number", local_number, update_modified=False)
-	frappe.db.set_value(
-		"PRRO Cash Register",
-		register.name,
-		{"current_shift": shift.name, "runtime_state": "Online", "last_server_sync": frappe.utils.now_datetime()},
-		update_modified=False,
-	)
+	receipt.reload()
+	_finalize_confirmed_receipt(receipt, register, shift, client)
 	frappe.db.commit()
 	return shift.name
 
@@ -1456,9 +1452,124 @@ def reconcile_receipt(receipt_name: str, client=None) -> dict:
 		return _reconcile_receipt_locked(receipt_name, client)
 
 
+def _finalize_confirmed_receipt(receipt, register, shift, client=None):
+	"""Idempotently applies local state changes after DPS confirmed a document.
+
+	The HTTP request may time out after DPS has accepted it.  Recovery must then
+	update not only the immutable receipt ledger, but also the shift/register
+	state which normally follows ``_send_online``.
+	"""
+	expected_type = _kind_label(receipt.receipt_kind)
+	if receipt.receipt_type != expected_type:
+		frappe.db.set_value(
+			"PRRO Receipt", receipt.name, "receipt_type", expected_type, update_modified=False
+		)
+	now = receipt.fiscalized_at or frappe.utils.now_datetime()
+	if receipt.receipt_kind == "Open Shift":
+		current_shift = frappe.db.get_value("PRRO Cash Register", register.name, "current_shift")
+		if current_shift and current_shift != shift.name:
+			frappe.db.set_value(
+				"PRRO Cash Register", register.name, "runtime_state", "Blocked", update_modified=False
+			)
+			raise FiscalProtocolError(
+				f"ДПС підтвердила відкриття зміни {shift.name}, але локально активна інша зміна {current_shift}"
+			)
+		frappe.db.set_value(
+			"PRRO Shift",
+			shift.name,
+			{
+				"status": "Open",
+				"opened_at": shift.opened_at or now,
+				"opening_fiscal_number": receipt.fiscal_number,
+				"opening_local_number": receipt.local_number,
+			},
+			update_modified=False,
+		)
+		frappe.db.set_value(
+			"PRRO Cash Register",
+			register.name,
+			{
+				"current_shift": shift.name,
+				"runtime_state": "Online",
+				"last_server_sync": frappe.utils.now_datetime(),
+			},
+			update_modified=False,
+		)
+		# A stored ticket can also contain the reserve identifiers required for
+		# a later protocol-compliant offline transition.
+		if receipt.dps_response and client:
+			try:
+				stored = receipt.dps_response
+				response = (
+					base64.b64decode(stored.removeprefix("base64:"))
+					if stored.startswith("base64:")
+					else stored.encode("windows-1251")
+				)
+				_update_offline_reserve(register, parse_ticket(response, client))
+			except Exception:
+				# Shift recovery is already authoritative via DocumentInfoByLocalNum;
+				# failure to re-read optional reserve data must not undo it.
+				frappe.log_error(frappe.get_traceback(), f"PRRO ticket reserve recovery {receipt.name}")
+		return
+
+	if receipt.receipt_kind == "Z Report":
+		frappe.db.set_value(
+			"PRRO Shift",
+			shift.name,
+			{
+				"status": "Closing" if shift.status != "Closed" else "Closed",
+				"z_report_fiscal_number": receipt.fiscal_number,
+				"z_report_xml": receipt.receipt_xml,
+			},
+			update_modified=False,
+		)
+		return
+
+	if receipt.receipt_kind == "Close Shift":
+		totals = _shift_totals(shift.name)
+		z_fiscal = frappe.db.get_value(
+			"PRRO Receipt",
+			{"shift": shift.name, "receipt_kind": "Z Report", "status": "Fiscalized"},
+			"fiscal_number",
+			order_by="local_number desc",
+		)
+		frappe.db.set_value(
+			"PRRO Shift",
+			shift.name,
+			{
+				"status": "Closed",
+				"closed_at": shift.closed_at or now,
+				"closing_fiscal_number": receipt.fiscal_number,
+				"closing_local_number": receipt.local_number,
+				"z_report_fiscal_number": z_fiscal or shift.z_report_fiscal_number,
+				"sales_total": totals["realiz"]["sum"],
+				"refunds_total": totals["returns"]["sum"],
+				"receipts_count": totals["realiz"]["count"] + totals["returns"]["count"],
+			},
+			update_modified=False,
+		)
+		frappe.db.set_value(
+			"PRRO Cash Register",
+			register.name,
+			{
+				"current_shift": None,
+				"runtime_state": "Online",
+				"last_server_sync": frappe.utils.now_datetime(),
+			},
+			update_modified=False,
+		)
+
+
 def _reconcile_receipt_locked(receipt_name: str, client=None) -> dict:
 	client = client or FiscalClient()
 	receipt = frappe.get_doc("PRRO Receipt", receipt_name)
+	if receipt.status == "Fiscalized":
+		register = frappe.get_doc("PRRO Cash Register", receipt.cash_register)
+		shift = frappe.get_doc("PRRO Shift", receipt.shift)
+		_finalize_confirmed_receipt(receipt, register, shift, client)
+		frappe.db.commit()
+		receipt.reload()
+		return receipt.as_dict()
 	if receipt.status not in {"Uncertain", "Error"}:
 		return receipt.as_dict()
 	register = frappe.get_doc("PRRO Cash Register", receipt.cash_register)
@@ -1478,6 +1589,9 @@ def _reconcile_receipt_locked(receipt_name: str, client=None) -> dict:
 			},
 			update_modified=False,
 		)
+		frappe.db.commit()
+		receipt.reload()
+		_finalize_confirmed_receipt(receipt, register, shift, client)
 		frappe.db.commit()
 		receipt.reload()
 		return receipt.as_dict()

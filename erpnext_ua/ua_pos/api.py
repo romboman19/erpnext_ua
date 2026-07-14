@@ -363,20 +363,25 @@ def fiscal_open_shift(pos_session_token: str) -> dict:
 			{
 				"cash_register": register.name,
 				"receipt_kind": "Open Shift",
-				"status": ("in", ("Uncertain", "Error")),
+				"status": ("in", ("Uncertain", "Error", "Fiscalized")),
 			},
 			"name",
 			order_by="local_number desc",
 		)
+		recovered = None
 		if failed_receipt:
 			try:
-				orchestration.reconcile_receipt(failed_receipt)
+				recovered = orchestration.reconcile_receipt(failed_receipt)
 			except Exception:
 				frappe.log_error(
 					frappe.get_traceback(),
 					f"PRRO open-shift recovery {failed_receipt}",
 				)
-		raise
+		# Timeout/protocol ambiguity can coexist with an accepted DPS document.
+		# If immediate reconciliation confirmed it, return success instead of
+		# asking the cashier to click again and risking a duplicate operation.
+		if not recovered or recovered.get("status") != "Fiscalized":
+			raise
 	audit("fiscal_shift_open", session, ("PRRO Cash Register", register.name))
 	return fiscal_status(pos_session_token)
 
