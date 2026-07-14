@@ -1661,7 +1661,14 @@ def _queue_print_if_configured(doc):
 @frappe.whitelist()
 def retry_fiscalization(pos_session_token: str, order: str) -> dict:
 	session = get_session(pos_session_token)
-	doc = _owned_order(session, order, {"Fiscal Pending", "Posted", "Manual Review"})
+	doc = _owned_order(session, order)
+	# A stale browser can still show Fiscal Pending after background recovery.
+	# Returning the completed document makes the action idempotent and refreshes
+	# the UI without touching DPS, accounting or cash movements again.
+	if doc.status in FINAL_ORDER_STATUSES | {"Printing"}:
+		return doc.as_dict()
+	if doc.status not in {"Fiscal Pending", "Posted", "Manual Review"}:
+		frappe.throw(_("Цей чек не очікує відновлення фіскалізації"))
 	if not doc.sales_invoice:
 		frappe.throw(_("Sales Invoice ще не створено"))
 	failed_receipt = doc.prro_receipt or frappe.db.get_value(
