@@ -94,7 +94,7 @@ def _fop_dict(fop_profile: str) -> dict:
 	return frappe.db.get_value(
 		"FOP Profile",
 		fop_profile,
-		["fop_full_name", "tax_id", "vat_payer", "vat_number"],
+		["fop_full_name", "prro_registered_name", "tax_id", "vat_payer", "vat_number"],
 		as_dict=True,
 	)
 

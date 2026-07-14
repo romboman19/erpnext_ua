@@ -68,6 +68,18 @@ def _cash_balance(shift: str) -> float:
 	)
 
 
+@frappe.whitelist()
+def list_cash_desks() -> list[dict]:
+	"""Return active desks for the login selector without exposing secrets."""
+	return frappe.get_all(
+		"POS Cash Desk",
+		filters={"status": "Active"},
+		fields=["name", "desk_name", "company", "warehouse", "prro_cash_register"],
+		order_by="desk_name asc, name asc",
+		limit_page_length=200,
+	)
+
+
 @frappe.whitelist(allow_guest=False)
 @rate_limit(key="cash_desk", limit=10, seconds=300, methods="POST", ip_based=True)
 def login_by_barcode(cash_desk: str, barcode: str, device_token: str | None = None) -> dict:
@@ -339,7 +351,32 @@ def fiscal_open_shift(pos_session_token: str) -> dict:
 	key = desk.default_kep_key or register.default_kep_key
 	if not key:
 		frappe.throw(_("Для ПРРО не налаштовано КЕП"))
-	orchestration.open_shift(register.name, key)
+	try:
+		orchestration.open_shift(register.name, key)
+	except Exception:
+		# Після остаточно відхиленого документа recovery має одразу звірити
+		# його відсутність у ДПС і повернути локальний номер. Інакше перша
+		# помилка приховує причину, а друга спроба лише повідомляє про
+		# незавершений ledger-запис.
+		failed_receipt = frappe.db.get_value(
+			"PRRO Receipt",
+			{
+				"cash_register": register.name,
+				"receipt_kind": "Open Shift",
+				"status": ("in", ("Uncertain", "Error")),
+			},
+			"name",
+			order_by="local_number desc",
+		)
+		if failed_receipt:
+			try:
+				orchestration.reconcile_receipt(failed_receipt)
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"PRRO open-shift recovery {failed_receipt}",
+				)
+		raise
 	audit("fiscal_shift_open", session, ("PRRO Cash Register", register.name))
 	return fiscal_status(pos_session_token)
 

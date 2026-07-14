@@ -10,7 +10,11 @@ class TestFiscalTotals(unittest.TestCase):
 		return xb.build_check_head(
 			doctype=xb.DOCTYPE_SALE,
 			subtype=xb.SUBTYPE_GOODS,
-			fop={"tax_id": "3184710691", "fop_full_name": "Тест Тестович"},
+			fop={
+				"tax_id": "3184710691",
+				"fop_full_name": "Тест Тестович",
+				"prro_registered_name": "ТЕСТ ТЕСТОВИЧ",
+			},
 			register={
 				"unit_name": "Магазин",
 				"unit_address": "м. Рівне",
@@ -21,6 +25,10 @@ class TestFiscalTotals(unittest.TestCase):
 			cashier_name="Касир Тестовий",
 			testing=True,
 		)
+
+	def test_registered_name_is_copied_to_orgnm_verbatim(self):
+		head = self._head()
+		self.assertEqual(head["ORGNM"], "ТЕСТ ТЕСТОВИЧ")
 
 	def test_excluded_tax_is_added_to_line_total(self):
 		xml = xb.build_sale_check(

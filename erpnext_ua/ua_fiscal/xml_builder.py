@@ -87,10 +87,13 @@ def _ordered(head: dict, order: list[str]) -> str:
 
 
 def _common_head(fop: dict, register: dict, local_number, cashier_name, dt) -> dict:
+	registered_name = (fop.get("prro_registered_name") or fop.get("fop_full_name") or "").strip()
 	head = {
 		"UID": str(uuid.uuid4()).upper(),
 		"TIN": fop["tax_id"],
-		"ORGNM": f"ФОП {fop['fop_full_name']}",
+		# ДПС звіряє ORGNM буквально з реєстраційними даними. Не можна
+		# самовільно додавати «ФОП», змінювати регістр або інші символи.
+		"ORGNM": registered_name,
 		"POINTNM": register["unit_name"],
 		"POINTADDR": register["unit_address"],
 		"ORDERDATE": dt.strftime("%d%m%Y"),

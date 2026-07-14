@@ -15,6 +15,13 @@ from erpnext_ua.ua_fiscal.fiscal_client import FiscalServerError
 TESTNAME = "_prro_selftest"
 
 
+def _test_company():
+	for company in frappe.get_all("Company", pluck="name"):
+		if not frappe.db.exists("FOP Profile", {"company": company}):
+			return company
+	raise AssertionError("Для PRRO self-test потрібна компанія без чинного FOP Profile")
+
+
 def _cleanup(company):
 	# Тест прибирає лише власні фікстури прямим DB delete: production-контролери
 	# навмисно забороняють видалення незмінного фіскального журналу.
@@ -98,12 +105,13 @@ class FakeFiscalClient:
 
 def run():
 	frappe.set_user("Administrator")
-	company = frappe.get_all("Company", pluck="name")[0]
+	company = _test_company()
 	_cleanup(company)
 
 	frappe.get_single("PRRO Settings").db_set("mode", "Тестовий")
 	fop = frappe.get_doc({
 		"doctype": "FOP Profile", "company": company, "fop_full_name": "Тест Тестович",
+		"prro_registered_name": "ТЕСТ ТЕСТОВИЧ",
 		"tax_id": "3184710691", "single_tax_group": "2", "tax_rate_mode": "Фіксована ставка",
 	}).insert(ignore_permissions=True)
 	kf = frappe.get_doc({"doctype": "File", "file_name": "dummy.key", "is_private": 1,
