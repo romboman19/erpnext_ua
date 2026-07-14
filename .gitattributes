@@ -1,0 +1,2 @@
+# Translation source strings may intentionally contain trailing whitespace.
+erpnext_ua/translations/*.csv -whitespace

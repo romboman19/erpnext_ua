@@ -6,6 +6,12 @@ class UAKEPKey(Document):
 	def validate(self):
 		self.validate_key_file_is_private()
 		self.update_status_by_validity()
+		if self.status == "Active" and not self.valid_until:
+			frappe.msgprint(
+				"Не вказано строк дії сертифіката КЕП. Signer все одно перевірить сертифікат перед підписом.",
+				indicator="orange",
+				alert=True,
+			)
 
 	def validate_key_file_is_private(self):
 		if not self.key_file:

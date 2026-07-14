@@ -36,7 +36,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
     token: sessionStorage.getItem("ua_pos_token"),
     session: null,
     order: null,
-    saleMode: "Non Fiscal",
+    saleMode: "Fiscal",
     clock: null,
     layout: loadLayout(),
     lastItem: null,
@@ -55,6 +55,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
     Posting: "Проведення",
     Posted: "Проведено",
     "Fiscal Pending": "Очікує фіскалізацію",
+    Printing: "Друк чека",
     Completed: "Завершено",
     "Completed Print Error": "Помилка друку",
     "Manual Review": "Потрібна перевірка",
@@ -68,6 +69,15 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
       ? Array.from(globalThis.crypto.getRandomValues(new Uint32Array(4)), (value) => value.toString(16)).join("")
       : `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
     return `${Date.now().toString(36)}-${random}`;
+  };
+  const deviceToken = () => {
+    const key = "ua_pos_device_token";
+    let token = localStorage.getItem(key);
+    if (!token) {
+      token = idem();
+      localStorage.setItem(key, token);
+    }
+    return token;
   };
   const api = (method, args = {}) =>
     frappe.call({ method: `erpnext_ua.ua_pos.api.${method}`, args }).then((response) => response.message);
@@ -118,7 +128,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
         <section class="ua-pos-command">
           <div class="ua-pos-command-top">
             <div class="ua-pos-search-wrap"><span class="ua-pos-search-icon">⌕</span><input class="ua-pos-scan" autocomplete="off" placeholder="Штрихкод, артикул або назва товару"><span class="ua-pos-keyhint">F2 · Enter</span></div>
-            <div class="ua-pos-mode"><button data-mode="Non Fiscal" class="active">Без фіскалізації</button><button data-mode="Fiscal" class="fiscal">Фіскальний продаж</button></div>
+            <div class="ua-pos-mode"><button data-mode="Non Fiscal">Без фіскалізації</button><button data-mode="Fiscal" class="fiscal active">Фіскальний продаж</button></div>
           </div>
           <div class="ua-pos-command-actions">
             <button class="ua-pos-action primary js-new-order">＋ Новий чек</button>
@@ -132,6 +142,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
             <button class="ua-pos-action js-return">↩ Повернення <span class="ua-pos-shortcut">F8</span></button>
             <button class="ua-pos-action js-cash-menu">₴ Операції з касою</button>
             <button class="ua-pos-action js-fiscal-menu">▣ Фіскальне меню</button>
+            <button class="ua-pos-action primary js-retry-fiscal" style="display:none">↻ Відновити фіскалізацію</button>
             <button class="ua-pos-action js-reports">▤ Звіти</button>
             <button class="ua-pos-action danger js-cancel">× Скасувати чек</button>
           </div>
@@ -273,7 +284,11 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
     $root.find(".js-terminal").text(desk.terminal || "не налаштовано");
     $root.find(".js-terminal-dot").toggleClass("ok", Boolean(desk.terminal));
     $root.find(".js-footer-shift").text(session.shift ? "● зміна відкрита" : "○ зміна закрита");
-    if (!desk.prro_cash_register) state.saleMode = "Non Fiscal";
+    state.saleMode = desk.prro_cash_register ? "Fiscal" : "Non Fiscal";
+    $root.find('.ua-pos-mode button[data-mode="Non Fiscal"]').prop(
+      "disabled",
+      !["Senior Cashier", "Manager"].includes(session.access_role)
+    );
     $root.find(".ua-pos-mode button").removeClass("active").filter(`[data-mode="${state.saleMode}"]`).addClass("active");
     $root.find(".js-footer-mode").text(state.saleMode === "Fiscal" ? "● фіскальний режим" : "○ без фіскалізації");
     $root.find(".js-new-order").prop("disabled", !session.shift);
@@ -309,7 +324,8 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
     $root.find(".js-pay-cash").prop("disabled", !payable);
     $root.find(".js-pay-card").prop("disabled", !payable || !state.session?.desk?.terminal);
     $root.find(".js-pay-mixed").prop("disabled", !payable || order?.fiscal_mode !== "Fiscal");
-    $root.find(".js-print").prop("disabled", !order || !["Completed", "Completed Print Error", "Fiscal Pending", "Posted"].includes(order.status));
+    $root.find(".js-print").prop("disabled", !order || !["Completed", "Completed Print Error"].includes(order.status));
+    $root.find(".js-retry-fiscal").toggle(Boolean(order && ["Fiscal Pending", "Posted", "Manual Review"].includes(order.status)));
     $root.find(".js-hold").prop("disabled", !order || !["Building", "Held"].includes(order.status));
     const customerActionAvailable = Boolean(state.session?.shift && (!order || (editable && order?.order_type !== "Return")));
     $root.find(".js-customer,.js-identify").prop("disabled", !customerActionAvailable);
@@ -343,7 +359,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
   async function login() {
     const $barcode = $root.find(".ua-pos-login-barcode");
     try {
-      const result = await api("login_by_barcode", { cash_desk: ($root.find(".ua-pos-login-desk").val() || "").trim(), barcode: ($barcode.val() || "").trim(), device_token: navigator.userAgent });
+      const result = await api("login_by_barcode", { cash_desk: ($root.find(".ua-pos-login-desk").val() || "").trim(), barcode: ($barcode.val() || "").trim(), device_token: deviceToken() });
       state.token = result.session_token;
       sessionStorage.setItem("ua_pos_token", state.token);
       await refreshSession();
@@ -603,15 +619,26 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
     win.focus();
   }
 
-  async function printReceipt() {
-    if (!state.order) return;
+  async function printReceiptBrowser() {
+	if (!state.order) return;
     const win = window.open("", "_blank", "width=520,height=760");
     const data = await api("receipt_data", { pos_session_token: state.token, order: state.order.name });
     const order = data.order;
     const items = (order.items || []).map((row) => `<tr><td>${esc(row.item_name || row.item_code)} × ${esc(row.qty)}</td><td>${money(row.amount)} грн</td></tr>`).join("");
     const payments = (order.payments_plan || []).filter((row) => row.status === "Confirmed").map((row) => `<tr><td>${esc(row.mode_of_payment)}</td><td>${money(row.amount)} грн</td></tr>`).join("");
-    const body = `<div class="center"><b>${esc(data.company.company_name || "")}</b><br>${esc(data.cash_desk)}<br><span class="muted">Касир: ${esc(data.employee_name)}</span></div><p><b>${order.order_type === "Return" ? "ПОВЕРНЕННЯ" : "ТОВАРНИЙ ЧЕК"} ${esc(order.name)}</b></p><table>${items}</table><p class="total">Разом: ${money(order.grand_total)} грн</p><table>${payments}</table>${order.change_amount ? `<p>Решта: ${money(order.change_amount)} грн</p>` : ""}<p class="center muted">Код чека для повернення:<br><b>${esc(order.lookup_token)}</b><br>${esc(data.printed_at)}</p>`;
-    printHtml(`${order.order_type === "Return" ? "Повернення" : "Чек"} ${order.name}`, body, win);
+    const fiscal = data.fiscal_receipt;
+    const fiscalBlock = fiscal ? `<p class="center"><b>ФІСКАЛЬНИЙ ЧЕК${fiscal.is_offline ? " · ОФЛАЙН" : ""}</b><br>Фіскальний №: <b>${esc(fiscal.fiscal_number)}</b><br>Локальний №: ${esc(fiscal.local_number)}</p>${fiscal.qr_data ? `<p class="center muted">Перевірка: ${esc(fiscal.qr_data)}</p>` : ""}` : `<p class="center"><b>НЕФІСКАЛЬНИЙ ТОВАРНИЙ ЧЕК</b></p>`;
+    const body = `<div class="center"><b>${esc(data.company.company_name || "")}</b><br>${esc(data.cash_desk)}<br><span class="muted">Касир: ${esc(data.employee_name)}</span></div>${fiscalBlock}<p><b>${order.order_type === "Return" ? "ПОВЕРНЕННЯ" : "ЧЕК"} ${esc(order.name)}</b></p><table>${items}</table><p class="total">Разом: ${money(order.grand_total)} грн</p><table>${payments}</table>${order.change_amount ? `<p>Решта: ${money(order.change_amount)} грн</p>` : ""}<p class="center muted">Код чека для повернення:<br><b>${esc(order.lookup_token)}</b><br>${esc(data.printed_at)}</p>`;
+	printHtml(`${order.order_type === "Return" ? "Повернення" : "Чек"} ${order.name}`, body, win);
+  }
+
+  async function printReceipt() {
+    if (!state.order) return;
+    if (!state.session?.desk?.receipt_printer) return printReceiptBrowser();
+    const result = await api("queue_receipt_print", { pos_session_token: state.token, order: state.order.name, idem_key: idem() });
+    if (result.fallback_browser) return printReceiptBrowser();
+    frappe.show_alert({ message: result.is_copy ? "Копію чека поставлено в чергу друку" : "Чек поставлено в чергу друку", indicator: "green" });
+    renderOrder(await api("get_order", { pos_session_token: state.token, order: state.order.name }));
   }
 
   function returnPaymentDialog(returnOrder, limits) {
@@ -944,6 +971,10 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
   $root.on("click", ".js-print", printReceipt);
   $root.on("click", ".js-cash-menu", cashMenu);
   $root.on("click", ".js-fiscal-menu", fiscalMenu);
+  $root.on("click", ".js-retry-fiscal", async () => {
+    if (!state.order) return;
+    renderOrder(await api("retry_fiscalization", { pos_session_token: state.token, order: state.order.name }));
+  });
   $root.on("click", ".js-stock", stockSearch);
   $root.on("click", ".js-reports", showReports);
   $root.on("click", ".js-return", startReturn);

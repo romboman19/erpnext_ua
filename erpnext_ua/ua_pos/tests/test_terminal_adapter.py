@@ -1,6 +1,6 @@
 import unittest
 
-from erpnext_ua.ua_pos.adapters.terminal import PrivatPosAdapter
+from erpnext_ua.ua_pos.adapters.terminal import PrivatPosAdapter, PrivatPOSGatewayClient
 
 
 class FakeClient:
@@ -18,6 +18,17 @@ class FakeClient:
 
 	def ping(self, *args, **kwargs):
 		return self.result
+
+
+class RecordingGateway(PrivatPOSGatewayClient):
+	def __init__(self, responses):
+		super().__init__("http://gateway.invalid", "test-key")
+		self.responses = list(responses)
+		self.paths = []
+
+	def _request(self, method, path, *, json=None):
+		self.paths.append(path)
+		return self.responses.pop(0)
 
 
 class TestPrivatPosAdapter(unittest.TestCase):
@@ -39,6 +50,23 @@ class TestPrivatPosAdapter(unittest.TestCase):
 		result = PrivatPosAdapter(client).status({"ip": "127.0.0.1", "port": 2000}, "op-3")
 		self.assertEqual(result.status, "confirmed")
 		self.assertEqual(client.calls[0][0][1], "op-3")
+
+	def test_server_error_is_unknown_not_a_second_payment(self):
+		gateway = RecordingGateway([{"error": True, "_http_status": 500, "description": "gateway error"}])
+		result = gateway.operation("sale", "127.0.0.1", 10, "op-4")
+		self.assertTrue(result["error"])
+		self.assertEqual(gateway.paths, ["/v1/pos/operation"])
+
+	def test_legacy_fallback_is_used_only_for_definite_404(self):
+		gateway = RecordingGateway(
+			[
+				{"error": True, "_http_status": 404},
+				{"responseCode": "0000", "_http_status": 200},
+			]
+		)
+		result = gateway.operation("sale", "127.0.0.1", 10, "op-5")
+		self.assertEqual(result["responseCode"], "0000")
+		self.assertEqual(gateway.paths, ["/v1/pos/operation", "/purchase"])
 
 
 if __name__ == "__main__":

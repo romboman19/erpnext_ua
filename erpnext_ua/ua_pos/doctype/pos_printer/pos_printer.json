@@ -1,0 +1,23 @@
+{
+ "doctype":"DocType","name":"POS Printer","module":"UA POS","autoname":"field:printer_name","title_field":"printer_name",
+ "field_order":["printer_name","status","printer_type","connection_type","host","port","paper_width_mm","characters_per_line","encoding","code_page","connect_timeout","max_attempts","last_seen_at","last_error"],
+ "fields":[
+  {"fieldname":"printer_name","fieldtype":"Data","label":"Printer Name","reqd":1,"unique":1},
+  {"fieldname":"status","fieldtype":"Select","label":"Status","options":"Active\nDisabled\nError","default":"Active","reqd":1},
+  {"fieldname":"printer_type","fieldtype":"Select","label":"Printer Type","options":"Receipt\nOffice\nLabel","default":"Receipt","reqd":1},
+  {"fieldname":"connection_type","fieldtype":"Select","label":"Connection","options":"Network ESC/POS\nRaw TCP","default":"Network ESC/POS","reqd":1},
+  {"fieldname":"host","fieldtype":"Data","label":"Host / IP","reqd":1},
+  {"fieldname":"port","fieldtype":"Int","label":"Port","default":"9100","reqd":1},
+  {"fieldname":"paper_width_mm","fieldtype":"Int","label":"Paper Width (mm)","default":"80"},
+  {"fieldname":"characters_per_line","fieldtype":"Int","label":"Characters per Line","default":"48","reqd":1},
+  {"fieldname":"encoding","fieldtype":"Select","label":"Encoding","options":"cp1251\ncp866\nutf-8","default":"cp1251","reqd":1},
+  {"fieldname":"code_page","fieldtype":"Int","label":"ESC/POS Code Page","default":"46"},
+  {"fieldname":"connect_timeout","fieldtype":"Int","label":"Connect Timeout (seconds)","default":"5"},
+  {"fieldname":"max_attempts","fieldtype":"Int","label":"Maximum Attempts","default":"3"},
+  {"fieldname":"last_seen_at","fieldtype":"Datetime","label":"Last Seen","read_only":1},
+  {"fieldname":"last_error","fieldtype":"Small Text","label":"Last Error","read_only":1}
+ ],
+ "permissions":[
+  {"role":"POS Cashier","read":1},{"role":"POS Manager","read":1},{"role":"POS Administrator","read":1,"write":1,"create":1},{"role":"System Manager","read":1,"write":1,"create":1,"delete":1}
+ ]
+}

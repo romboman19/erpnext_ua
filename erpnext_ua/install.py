@@ -1,3 +1,7 @@
+import hashlib
+import re
+import uuid
+
 import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
@@ -77,6 +81,14 @@ def ensure_pos_setup():
 			"Item": [
 				{"fieldname": "ua_serial_mode", "label": "UA Serial Mode", "fieldtype": "Select", "options": "\nStrict\nAdvisory\nNone"},
 				{"fieldname": "ua_warranty_months", "label": "Warranty (months)", "fieldtype": "Int"},
+				{"fieldname": "ua_prro_tax_letters", "label": "PRRO Tax Letters", "fieldtype": "Data", "description": "Літери податкових груп ДПС, наприклад А або АБ"},
+				{"fieldname": "ua_prro_unit_code", "label": "PRRO Unit Code", "fieldtype": "Data"},
+				{"fieldname": "ua_prro_dkpp", "label": "ДКПП", "fieldtype": "Data"},
+			],
+			"Sales Taxes and Charges": [
+				{"fieldname": "ua_prro_tax_type", "label": "PRRO Tax Type", "fieldtype": "Int", "description": "0 — ПДВ, 1 — акциз та інші податки"},
+				{"fieldname": "ua_prro_tax_letter", "label": "PRRO Tax Letter", "fieldtype": "Data"},
+				{"fieldname": "ua_prro_tax_name", "label": "PRRO Tax Name", "fieldtype": "Data"},
 			],
 			"Customer": [
 				{"fieldname": "ua_pos_details_section", "label": "UA POS Customer Details", "fieldtype": "Section Break"},
@@ -92,4 +104,59 @@ def ensure_pos_setup():
 		},
 		update=True,
 	)
+	frappe.db.commit()
+
+
+def ensure_prro_setup():
+	"""Заповнює стабільні 64-символьні device ID для існуючих ПРРО без мережевих викликів."""
+	if not frappe.db.table_exists("PRRO Cash Register"):
+		return
+	for row in frappe.get_all("PRRO Cash Register", fields=["name", "device_id"]):
+		if re.fullmatch(r"[0-9a-f]{64}", row.device_id or ""):
+			continue
+		seed = (row.device_id or str(uuid.uuid4())).encode()
+		frappe.db.set_value(
+			"PRRO Cash Register",
+			row.name,
+			{
+				"device_id": hashlib.sha256(seed).hexdigest(),
+				"device_registered": 0,
+				"device_registered_at": None,
+				"runtime_state": "Online",
+			},
+			update_modified=False,
+		)
+	frappe.db.commit()
+
+
+def ensure_pos_printers():
+	"""Переносить legacy host:port кас у керований довідник принтерів без втрати налаштувань."""
+	if not frappe.db.table_exists("POS Printer") or not frappe.db.table_exists("POS Cash Desk"):
+		return
+	for desk in frappe.get_all(
+		"POS Cash Desk",
+		filters={"receipt_printer": ("is", "not set"), "receipt_printer_host": ("is", "set")},
+		fields=["name", "desk_name", "receipt_printer_host", "receipt_printer_port"],
+	):
+		printer_name = f"Чековий принтер — {desk.desk_name or desk.name}"
+		if not frappe.db.exists("POS Printer", printer_name):
+			try:
+				frappe.get_doc(
+					{
+						"doctype": "POS Printer",
+						"printer_name": printer_name,
+						"printer_type": "Receipt",
+						"connection_type": "Network ESC/POS",
+						"host": desk.receipt_printer_host,
+						"port": desk.receipt_printer_port or 9100,
+					}
+				).insert(ignore_permissions=True)
+			except frappe.ValidationError:
+				# Невалідний або публічний legacy-host не повинен зривати bench migrate.
+				# Адміністратор виправить його вручну; небезпечний endpoint не активується.
+				frappe.log_error(
+					frappe.get_traceback(), f"POS Printer migration skipped for {desk.name}"
+				)
+				continue
+		frappe.db.set_value("POS Cash Desk", desk.name, "receipt_printer", printer_name, update_modified=False)
 	frappe.db.commit()

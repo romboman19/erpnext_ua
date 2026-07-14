@@ -5,6 +5,8 @@
 (власником рахунку) або ключем каси за замовчуванням.
 """
 
+import re
+
 import frappe
 
 from erpnext_ua.ua_fiscal import orchestration as orch
@@ -32,13 +34,28 @@ def _kep_key_for_invoice(si, register_name: str) -> str | None:
 def _invoice_lines(si) -> list[dict]:
 	lines = []
 	for it in si.get("items") or []:
+		item_meta = frappe.db.get_value(
+			"Item",
+			it.item_code,
+			["customs_tariff_number", "ua_prro_dkpp", "ua_prro_unit_code", "ua_prro_tax_letters"],
+			as_dict=True,
+		) or {}
+		net_amount = it.get("net_amount")
+		net_rate = it.get("net_rate")
+		amount = abs(frappe.utils.flt(net_amount if net_amount is not None else it.get("amount")))
+		qty = abs(frappe.utils.flt(it.qty))
 		lines.append({
 			"code": it.item_code or it.item_name,
+			"barcode": it.get("barcode"),
+			"uktzed": it.get("customs_tariff_number") or item_meta.get("customs_tariff_number"),
+			"dkpp": it.get("ua_prro_dkpp") or item_meta.get("ua_prro_dkpp"),
+			"unit_cd": it.get("ua_prro_unit_code") or item_meta.get("ua_prro_unit_code"),
+			"letters": it.get("ua_prro_tax_letters") or item_meta.get("ua_prro_tax_letters"),
 			"name": it.item_name or it.item_code,
 			"uom": it.uom or it.stock_uom or "шт",
-			"qty": abs(frappe.utils.flt(it.qty)),
-			"price": frappe.utils.flt(it.rate),
-			"amount": abs(frappe.utils.flt(it.amount)),
+			"qty": qty,
+			"price": abs(frappe.utils.flt(net_rate if net_rate is not None else it.rate)),
+			"amount": amount,
 		})
 	return lines
 
@@ -49,7 +66,12 @@ def _invoice_payments(si) -> list[dict]:
 		amount = abs(frappe.utils.flt(p.amount))
 		if not amount:
 			continue
-		code = PAYFORM_CASH if (p.type or "").lower() == "cash" else PAYFORM_CASHLESS
+		configured_code = frappe.db.get_value("Mode of Payment", p.mode_of_payment, "ua_payformcd")
+		code = (
+			int(configured_code)
+			if configured_code not in (None, "")
+			else (PAYFORM_CASH if (p.type or "").lower() == "cash" else PAYFORM_CASHLESS)
+		)
 		row = {"code": code, "name": (p.mode_of_payment or "").upper() or "ГОТІВКА", "sum": amount}
 		# решта для готівки
 		if code == PAYFORM_CASH and frappe.utils.flt(si.get("change_amount")) > 0:
@@ -58,8 +80,45 @@ def _invoice_payments(si) -> list[dict]:
 		payments.append(row)
 	if not payments:  # рахунок без POS-оплат — вважаємо готівкою на всю суму
 		payments.append({"code": PAYFORM_CASH, "name": "ГОТІВКА",
-						 "sum": frappe.utils.flt(si.rounded_total or si.grand_total)})
+						 "sum": abs(frappe.utils.flt(si.rounded_total or si.grand_total))})
 	return payments
+
+
+def _invoice_taxes(si) -> list[dict]:
+	"""Мапить фактичні податки SI, надаючи перевагу явним полям конфігурації ПРРО."""
+	result = []
+	item_amounts = {}
+	for item in si.get("items") or []:
+		net_amount = item.get("net_amount")
+		item_amounts[item.item_code] = item_amounts.get(item.item_code, 0) + abs(
+			frappe.utils.flt(net_amount if net_amount is not None else item.get("amount"))
+		)
+	for row in si.get("taxes") or []:
+		rate = frappe.utils.flt(row.get("rate"))
+		amount = abs(frappe.utils.flt(row.get("tax_amount_after_discount_amount") or row.get("tax_amount")))
+		if not rate or not amount:
+			continue
+		name = row.get("ua_prro_tax_name") or row.get("description") or row.get("account_head") or "ПДВ"
+		match = re.search(r"\[([А-ЯA-Z])\]", name)
+		letter = row.get("ua_prro_tax_letter") or (match.group(1) if match else ("А" if "ПДВ" in name.upper() else None))
+		details = frappe.parse_json(row.get("item_wise_tax_detail") or "{}") or {}
+		turnover = sum(item_amounts.get(item_code, 0) for item_code in details)
+		if not turnover:
+			turnover = abs(frappe.utils.flt(si.get("grand_total") or si.get("net_total")))
+		result.append(
+			{
+				"type": int(row.get("ua_prro_tax_type") or (0 if "ПДВ" in name.upper() else 1)),
+				"name": name[:64],
+				"letter": letter,
+				"prc": abs(rate),
+				# SIGN у протоколі — податок НЕ включено у вартість, а не
+				# математичний знак ставки.
+				"sign": not bool(frappe.utils.cint(row.get("included_in_print_rate"))),
+				"turnover": turnover,
+				"sum": amount,
+			}
+		)
+	return result
 
 
 def _related_receipt(si) -> str | None:
@@ -95,16 +154,23 @@ def fiscalize_invoice(sales_invoice: str, client=None) -> str | None:
 	if not kep_key:
 		frappe.throw(f"Не знайдено активного ключа КЕП для касира {si.owner}", FiscalServerError)
 
-	total = frappe.utils.flt(si.rounded_total or si.grand_total)
+	no_rounding_total = abs(frappe.utils.flt(si.grand_total))
+	total = abs(frappe.utils.flt(si.rounded_total or si.grand_total))
+	has_rounding = abs(total - no_rounding_total) > 0.001
 	return orch.fiscalize_sale(
 		cash_register=register,
 		kep_key=kep_key,
 		items=_invoice_lines(si),
 		payments=_invoice_payments(si),
 		total=total,
+		taxes=_invoice_taxes(si),
+		no_rounding_total=no_rounding_total if has_rounding else None,
+		rounding_sum=(no_rounding_total - total) if has_rounding else None,
 		receipt_type="Повернення" if si.is_return else "Продаж",
 		sales_invoice=sales_invoice,
 		related_receipt=_related_receipt(si),
+		pos_order=si.get("ua_pos_order"),
+		idem_key=f"{'return' if si.is_return else 'sale'}:{register}:{sales_invoice}",
 		client=client,
 	)
 
@@ -116,6 +182,10 @@ def on_submit(doc, method=None):
 	Помилка не блокує проведення — чек лишається в статусі Error для повтору.
 	"""
 	if not doc.get("is_pos"):
+		return
+	# Власний UA POS фіскалізує після завершення checkout, коли доступні точні
+	# дані термінала; хук лишається для стандартного ERPNext POS.
+	if doc.get("ua_pos_order"):
 		return
 	settings = frappe.get_cached_doc("PRRO Settings")
 	if not settings.enabled:

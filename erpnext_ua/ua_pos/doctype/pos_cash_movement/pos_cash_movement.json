@@ -1,6 +1,6 @@
 {
  "doctype":"DocType","name":"POS Cash Movement","module":"UA POS","autoname":"POS-MOV-.YYYY.-.#####","is_submittable":1,
- "field_order":["cash_desk","operational_shift","employee","direction","movement_type","amount","currency","mode_of_payment","is_cash_drawer","fop_profile","basis_doctype","basis_name","reversal_of","idem_key","notes"],
+ "field_order":["cash_desk","operational_shift","employee","direction","movement_type","amount","currency","mode_of_payment","is_cash_drawer","fop_profile","basis_doctype","basis_name","reversal_of","idem_key","prro_receipt","fiscal_status","notes"],
  "fields":[
   {"fieldname":"cash_desk","fieldtype":"Link","label":"Cash Desk","options":"POS Cash Desk","reqd":1},
   {"fieldname":"operational_shift","fieldtype":"Link","label":"Operational Shift","options":"POS Operational Shift","reqd":1},
@@ -16,6 +16,8 @@
   {"fieldname":"basis_name","fieldtype":"Dynamic Link","label":"Basis","options":"basis_doctype"},
   {"fieldname":"reversal_of","fieldtype":"Link","label":"Reversal Of","options":"POS Cash Movement"},
   {"fieldname":"idem_key","fieldtype":"Data","label":"Idempotency Key","unique":1,"read_only":1},
+  {"fieldname":"prro_receipt","fieldtype":"Link","label":"PRRO Receipt","options":"PRRO Receipt","read_only":1},
+  {"fieldname":"fiscal_status","fieldtype":"Select","label":"Fiscal Status","options":"Not Required\nPending\nFiscalized\nOffline\nError","default":"Not Required","read_only":1},
   {"fieldname":"notes","fieldtype":"Small Text","label":"Notes"}
  ],
  "permissions":[{"role":"POS Cashier","read":1},{"role":"POS Manager","read":1},{"role":"POS Administrator","read":1},{"role":"System Manager","read":1}]

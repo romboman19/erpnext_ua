@@ -9,12 +9,17 @@
   "column_break_main",
   "cashier",
   "kep_key",
+  "operational_shift",
+  "fop_profile",
   "section_open",
   "opened_at",
   "opening_fiscal_number",
+  "opening_local_number",
+  "server_shift_id",
   "column_break_open",
   "closed_at",
   "closing_fiscal_number",
+  "closing_local_number",
   "section_totals",
   "receipts_count",
   "column_break_totals",
@@ -41,7 +46,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Статус",
-   "options": "Opening\nOpen\nClosing\nClosed\nError"
+   "options": "Opening\nOpen\nClosing\nClosed\nClosed Offline\nError"
   },
   {
    "fieldname": "column_break_main",
@@ -62,6 +67,19 @@
    "options": "UA KEP Key"
   },
   {
+   "fieldname": "operational_shift",
+   "fieldtype": "Link",
+   "label": "Управлінська зміна",
+   "options": "POS Operational Shift"
+  },
+  {
+   "fieldname": "fop_profile",
+   "fieldtype": "Link",
+   "label": "Профіль ФОП",
+   "options": "FOP Profile",
+   "read_only": 1
+  },
+  {
    "fieldname": "section_open",
    "fieldtype": "Section Break",
    "label": "Відкриття / закриття"
@@ -80,6 +98,18 @@
    "read_only": 1
   },
   {
+   "fieldname": "opening_local_number",
+   "fieldtype": "Int",
+   "label": "Локальний № відкриття",
+   "read_only": 1
+  },
+  {
+   "fieldname": "server_shift_id",
+   "fieldtype": "Data",
+   "label": "ID зміни у ДПС",
+   "read_only": 1
+  },
+  {
    "fieldname": "column_break_open",
    "fieldtype": "Column Break"
   },
@@ -93,6 +123,12 @@
    "fieldname": "closing_fiscal_number",
    "fieldtype": "Data",
    "label": "Фіскальний № закриття",
+   "read_only": 1
+  },
+  {
+   "fieldname": "closing_local_number",
+   "fieldtype": "Int",
+   "label": "Локальний № закриття",
    "read_only": 1
   },
   {

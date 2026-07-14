@@ -15,15 +15,14 @@ TESTNAME = "_prro_selftest"
 
 
 def _cleanup(company):
-	for dt in ["PRRO Receipt", "PRRO Shift"]:
-		for n in frappe.get_all(dt, filters={"cash_register": TESTNAME}, pluck="name"):
-			frappe.delete_doc(dt, n, force=True)
-	if frappe.db.exists("PRRO Cash Register", TESTNAME):
-		frappe.delete_doc("PRRO Cash Register", TESTNAME, force=True)
-	for n in frappe.get_all("UA KEP Key", filters={"user": "Administrator"}, pluck="name"):
-		frappe.delete_doc("UA KEP Key", n, force=True)
-	if frappe.db.exists("FOP Profile", company):
-		frappe.delete_doc("FOP Profile", company, force=True)
+	# Тест прибирає лише власні фікстури прямим DB delete: production-контролери
+	# навмисно забороняють видалення незмінного фіскального журналу.
+	frappe.db.delete("PRRO Receipt", {"cash_register": TESTNAME})
+	frappe.db.delete("PRRO Offline Session", {"cash_register": TESTNAME})
+	frappe.db.delete("PRRO Shift", {"cash_register": TESTNAME})
+	frappe.db.delete("PRRO Cash Register", {"name": TESTNAME})
+	frappe.db.delete("UA KEP Key", {"subject_name": "Касир Тестовий"})
+	frappe.db.delete("FOP Profile", {"company": company, "fop_full_name": "Тест Тестович"})
 	frappe.db.commit()
 
 
@@ -35,8 +34,29 @@ class FakeFiscalClient:
 		self.settings.mode = "Тестовий"
 		self.counter = 5000000000
 		self.sent = []
+		self.next_local = 1
+		self.shift_state = 0
+		self.device_calls = 0
+		self.state_calls = 0
 
-	def sign(self, xml: bytes, kep_key: str) -> bytes:
+	def device_register(self, fiscal_number, device_id, kep_key, forced=False):
+		assert len(device_id) == 64 and not forced
+		self.device_calls += 1
+		return {"DeviceId": device_id}
+
+	def registrar_state(self, fiscal_number, kep_key, **extra):
+		self.state_calls += 1
+		return {
+			"ShiftState": self.shift_state,
+			"NextLocalNum": self.next_local,
+			"Testing": True if self.shift_state else False,
+			"OfflineSessionId": "82563",
+			"OfflineSeed": "179625192271939",
+			"OfflineSessionsMonthlyDuration": 0,
+			"Closed": False,
+		}
+
+	def sign(self, xml: bytes, kep_key: str, *, online: bool = True) -> bytes:
 		xb.validate_document(xml)  # кине ValueError, якщо XML невалідний
 		from lxml import etree
 
@@ -44,6 +64,15 @@ class FakeFiscalClient:
 		return b"SIGNED:" + xml
 
 	def send_document(self, signed: bytes) -> bytes:
+		from lxml import etree
+
+		root = etree.fromstring(signed.removeprefix(b"SIGNED:"))
+		doctype = root.findtext(".//DOCTYPE")
+		if doctype == str(xb.DOCTYPE_OPEN_SHIFT):
+			self.shift_state = 1
+		elif doctype == str(xb.DOCTYPE_CLOSE_SHIFT):
+			self.shift_state = 0
+		self.next_local += 1
 		self.counter += 1
 		return (
 			'<?xml version="1.0" encoding="windows-1251"?>'
@@ -75,6 +104,7 @@ def run():
 		"doctype": "PRRO Cash Register", "register_name": TESTNAME, "fop_profile": fop.name,
 		"fiscal_number": "4000099999", "unit_name": "Інтернет-магазин HUNTER",
 		"unit_address": "м. Рівне, вул. Тестова, 1", "default_kep_key": kep.name,
+		"device_registered": 1,
 	}).insert(ignore_permissions=True)
 	frappe.db.commit()
 
@@ -107,6 +137,7 @@ def run():
 	nums = sorted(frappe.db.get_value("PRRO Receipt", r, "local_number") for r in (r1, r2))
 	assert nums == [2, 3], nums  # відкриття=1, чеки=2,3 — наскрізна нумерація
 	assert client.sent == ["CHECK", "CHECK", "CHECK", "ZREP", "CHECK"], client.sent
+	assert client.device_calls == 5 and client.state_calls == 5
 
 	print(f"OK: shift {shift_name} відкрито→2 чеки→Z-звіт {shift.z_report_fiscal_number}→закрито; "
 		  f"local nums {nums}; docs {client.sent}")

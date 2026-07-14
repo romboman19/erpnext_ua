@@ -1,0 +1,222 @@
+{
+ "actions": [],
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "cash_register",
+  "shift",
+  "kep_key",
+  "column_break_main",
+  "status",
+  "session_id",
+  "offline_seed",
+  "session_key",
+  "section_timing",
+  "started_at",
+  "ended_at",
+  "column_break_timing",
+  "duration_minutes",
+  "monthly_minutes_at_start",
+  "section_chain",
+  "next_session_local_number",
+  "documents_count",
+  "column_break_chain",
+  "last_document_hash",
+  "revoke_last_online_document",
+  "section_delivery",
+  "retry_count",
+  "next_retry_at",
+  "column_break_delivery",
+  "last_error",
+  "server_response"
+ ],
+ "fields": [
+  {
+   "fieldname": "cash_register",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Каса (ПРРО)",
+   "options": "PRRO Cash Register",
+   "reqd": 1
+  },
+  {
+   "fieldname": "shift",
+   "fieldtype": "Link",
+   "label": "Зміна ПРРО",
+   "options": "PRRO Shift",
+   "reqd": 1
+  },
+  {
+   "fieldname": "kep_key",
+   "fieldtype": "Link",
+   "label": "Ключ КЕП",
+   "options": "UA KEP Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Opening",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Статус",
+   "options": "Opening\nOpen\nClosing\nQueued\nSending\nDelivered\nBlocked\nError"
+  },
+  {
+   "fieldname": "session_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "ID офлайн-сесії",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "offline_seed",
+   "fieldtype": "Password",
+   "hidden": 1,
+   "label": "Секретне число офлайн-сесії",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "session_key",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Унікальний ключ",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "section_timing",
+   "fieldtype": "Section Break",
+   "label": "Ліміти офлайн-режиму"
+  },
+  {
+   "fieldname": "started_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Початок",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ended_at",
+   "fieldtype": "Datetime",
+   "label": "Завершення",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_timing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "duration_minutes",
+   "fieldtype": "Int",
+   "label": "Тривалість, хв",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "monthly_minutes_at_start",
+   "fieldtype": "Int",
+   "label": "Використано за місяць до початку, хв",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_chain",
+   "fieldtype": "Section Break",
+   "label": "Ланцюг документів"
+  },
+  {
+   "default": "1",
+   "fieldname": "next_session_local_number",
+   "fieldtype": "Int",
+   "label": "Наступний номер у сесії",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "documents_count",
+   "fieldtype": "Int",
+   "label": "Документів",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_chain",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_document_hash",
+   "fieldtype": "Data",
+   "label": "SHA-256 останнього фінансового документа",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "revoke_last_online_document",
+   "fieldtype": "Check",
+   "label": "Відкликати останній онлайн-чек",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_delivery",
+   "fieldtype": "Section Break",
+   "label": "Передача до ДПС"
+  },
+  {
+   "default": "0",
+   "fieldname": "retry_count",
+   "fieldtype": "Int",
+   "label": "Спроб",
+   "read_only": 1
+  },
+  {
+   "fieldname": "next_retry_at",
+   "fieldtype": "Datetime",
+   "label": "Наступна спроба",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_delivery",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Остання помилка",
+   "read_only": 1
+  },
+  {
+   "fieldname": "server_response",
+   "fieldtype": "Code",
+   "label": "Відповідь ДПС",
+   "read_only": 1
+  }
+ ],
+ "links": [
+  {
+   "link_doctype": "PRRO Receipt",
+   "link_fieldname": "offline_session"
+  }
+ ],
+ "module": "UA Fiscal",
+ "name": "PRRO Offline Session",
+ "permissions": [
+  {
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

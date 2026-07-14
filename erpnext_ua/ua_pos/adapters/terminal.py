@@ -69,6 +69,7 @@ class PrivatPOSGatewayClient:
 		if response.status_code >= 400:
 			data.setdefault("error", True)
 			data.setdefault("description", f"HTTP {response.status_code}")
+		data["_http_status"] = response.status_code
 		return data
 
 	def operation(
@@ -92,7 +93,9 @@ class PrivatPOSGatewayClient:
 			"reference_operation_id": reference,
 		}
 		result = self._request("POST", "/v1/pos/operation", json=payload)
-		if not result.get("error") and result.get("status_code") != 404:
+		# Legacy fallback is safe only when the modern endpoint is definitively absent.
+		# A 5xx/unknown response may follow a successfully processed payment.
+		if result.get("_http_status") != 404:
 			return result
 
 		legacy_path = {"sale": "/purchase", "refund": "/refund", "void": "/void"}.get(operation)
@@ -178,4 +181,3 @@ class PrivatPosAdapter(TerminalAdapter):
 	def status(self, terminal: dict[str, Any], operation_id: str) -> TerminalResult:
 		raw = self.client.status(terminal["ip"], operation_id, terminal.get("port", 2000))
 		return self._result(raw)
-

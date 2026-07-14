@@ -33,11 +33,13 @@ def resolve_terminal(terminal: str) -> dict:
 
 @frappe.whitelist()
 def test_connection(terminal: str) -> dict:
+	frappe.only_for(("System Manager", "POS Administrator"))
 	return {"ok": get_adapter().ping(resolve_terminal(terminal))}
 
 
 @frappe.whitelist()
 def test_payment(terminal: str, amount: float = 1) -> dict:
+	frappe.only_for(("System Manager", "POS Administrator"))
 	operation_id = f"TEST-SALE-{frappe.generate_hash(length=12)}"
 	result = get_adapter().sale(resolve_terminal(terminal), float(amount), operation_id)
 	return {"operation_id": operation_id, **result.as_dict()}
@@ -45,6 +47,7 @@ def test_payment(terminal: str, amount: float = 1) -> dict:
 
 @frappe.whitelist()
 def test_refund(terminal: str, amount: float, reference: str) -> dict:
+	frappe.only_for(("System Manager", "POS Administrator"))
 	operation_id = f"TEST-REFUND-{frappe.generate_hash(length=12)}"
 	result = get_adapter().refund(resolve_terminal(terminal), float(amount), operation_id, reference)
 	return {"operation_id": operation_id, **result.as_dict()}
@@ -52,5 +55,5 @@ def test_refund(terminal: str, amount: float, reference: str) -> dict:
 
 @frappe.whitelist()
 def operation_status(terminal: str, operation_id: str) -> dict:
+	frappe.only_for(("System Manager", "POS Administrator"))
 	return get_adapter().status(resolve_terminal(terminal), operation_id).as_dict()
-

@@ -59,8 +59,9 @@ SUBTYPE_STORNO = 5
 _CHECKHEAD_ORDER = [
 	"DOCTYPE", "DOCSUBTYPE", "UID", "TIN", "IPN", "ORGNM", "POINTNM", "POINTADDR",
 	"ORDERDATE", "ORDERTIME", "ORDERNUM", "CASHDESKNUM", "CASHREGISTERNUM",
-	"ORDERRETNUM", "ORDERSTORNUM", "REVOKELASTONLINEDOC", "CASHIER", "VER",
-	"ORDERTAXNUM", "OFFLINE", "PREVDOCHASH", "TESTING",
+	"ORDERRETCASHREGNUM", "ORDERRETDATE", "ORDERRETNUM", "ORDERSTORNUM", "OPERTYPENM",
+	"VEHICLERN", "REVOKELASTONLINEDOC", "CASHIER", "LOGOURL", "COMMENT", "VER",
+	"ORDERTAXNUM", "OFFLINE", "PREVDOCHASH", "REVOKED", "STORNED", "TESTING",
 ]
 
 # Порядок елементів ZREPHEAD (ZHead) за zrep01.xsd
@@ -119,7 +120,10 @@ def build_check_head(
 	prev_doc_hash: str | None = None,
 	order_tax_num: str | None = None,
 	order_ret_num: str | None = None,
+	order_ret_cash_register: str | None = None,
+	order_ret_date: str | None = None,
 	order_storno_num: str | None = None,
+	revoke_last_online_document: bool = False,
 ) -> dict:
 	dt = posting_datetime or frappe.utils.now_datetime()
 	head = _common_head(fop, register, local_number, cashier_name, dt)
@@ -128,8 +132,14 @@ def build_check_head(
 		head["DOCSUBTYPE"] = subtype
 	if order_ret_num:
 		head["ORDERRETNUM"] = order_ret_num
+	if order_ret_cash_register:
+		head["ORDERRETCASHREGNUM"] = order_ret_cash_register
+	if order_ret_date:
+		head["ORDERRETDATE"] = order_ret_date
 	if order_storno_num:
 		head["ORDERSTORNUM"] = order_storno_num
+	if revoke_last_online_document:
+		head["REVOKELASTONLINEDOC"] = "true"
 	if testing:
 		head["TESTING"] = "true"
 	if offline:
@@ -155,12 +165,22 @@ def build_service_document(head: dict) -> bytes:
 	return _wrap_check(_ordered(head, _CHECKHEAD_ORDER))
 
 
+def build_service_cash_document(head: dict, total: float) -> bytes:
+	"""Службове внесення/видача: CHECKHEAD + CHECKTOTAL без товарних рядків."""
+	return _wrap_check(
+		_ordered(head, _CHECKHEAD_ORDER),
+		f"<CHECKTOTAL><SUM>{_fmt_sum(total)}</SUM></CHECKTOTAL>",
+	)
+
+
 def build_sale_check(
 	head: dict,
 	items: list[dict],
 	payments: list[dict],
 	total: float,
 	taxes: list[dict] | None = None,
+	no_rounding_total: float | None = None,
+	rounding_sum: float | None = None,
 ) -> bytes:
 	"""Чек реалізації/повернення (тип за DOCSUBTYPE у head).
 
@@ -168,6 +188,43 @@ def build_sale_check(
 	payments: [{code, name, sum, provided?, remains?}]  (code: 0-готівка, 1-картка)
 	taxes:    [{type, name, letter, prc, sign, turnover, sum}]  (лише для платників ПДВ)
 	"""
+	base_total = frappe.utils.flt(no_rounding_total if no_rounding_total is not None else total)
+	excluded_tax = sum(
+		frappe.utils.flt(tax.get("sum")) for tax in (taxes or []) if tax.get("sign")
+	)
+	line_total = sum(frappe.utils.flt(item.get("amount")) for item in items)
+	if abs(line_total + excluded_tax - base_total) > 0.02:
+		raise ValueError("Сума товарних рядків не дорівнює CHECKTOTAL")
+	if abs(sum(frappe.utils.flt(payment.get("sum")) for payment in payments) - frappe.utils.flt(total)) > 0.02:
+		raise ValueError("Сума форм оплати не дорівнює CHECKTOTAL")
+	if taxes and any(not item.get("letters") for item in items):
+		raise ValueError("Для оподатковуваного чека кожен товар повинен мати PRRO Tax Letters")
+
+	def paysys_xml(rows: list[dict]) -> str:
+		order = [
+			"tax_num", "name", "acquire_id", "acquire_pn", "acquire_name", "transaction_id",
+			"transaction_date", "transaction_number", "device_id", "epz_details", "auth_code",
+			"client_info", "sum", "commission",
+		]
+		tags = {
+			"tax_num": "TAXNUM", "name": "NAME", "acquire_id": "ACQUIREID", "acquire_pn": "ACQUIREPN",
+			"acquire_name": "ACQUIRENM", "transaction_id": "ACQUIRETRANSID",
+			"transaction_date": "POSTRANSDATE", "transaction_number": "POSTRANSNUM",
+			"device_id": "DEVICEID", "epz_details": "EPZDETAILS", "auth_code": "AUTHCD",
+			"client_info": "CLIENTINFO", "sum": "SUM", "commission": "COMMISSION",
+		}
+		result = []
+		for rownum, values in enumerate(rows, start=1):
+			content = []
+			for key in order:
+				value = values.get(key)
+				if value is None or value == "":
+					continue
+				value = _fmt_sum(value) if key in {"sum", "commission"} else escape(str(value))
+				content.append(f"<{tags[key]}>{value}</{tags[key]}>")
+			result.append(f'<ROW ROWNUM="{rownum}">{"".join(content)}</ROW>')
+		return f"<PAYSYS>{''.join(result)}</PAYSYS>" if result else ""
+
 	pay_rows = []
 	for i, pay in enumerate(payments, start=1):
 		pay_rows.append(
@@ -177,6 +234,7 @@ def build_sale_check(
 			f"<SUM>{_fmt_sum(pay['sum'])}</SUM>"
 			+ (f"<PROVIDED>{_fmt_sum(pay['provided'])}</PROVIDED>" if pay.get("provided") is not None else "")
 			+ (f"<REMAINS>{_fmt_sum(pay['remains'])}</REMAINS>" if pay.get("remains") is not None else "")
+			+ paysys_xml(pay.get("paysys") or [])
 			+ "</ROW>"
 		)
 
@@ -200,9 +258,15 @@ def build_sale_check(
 	body_rows = []
 	for i, item in enumerate(items, start=1):
 		row = [f'<ROW ROWNUM="{i}">', f"<CODE>{escape(str(item.get('code') or i))}</CODE>"]
+		if item.get("barcode"):
+			row.append(f"<BARCODE>{escape(str(item['barcode']))}</BARCODE>")
 		if item.get("uktzed"):
 			row.append(f"<UKTZED>{escape(str(item['uktzed']))}</UKTZED>")
+		elif item.get("dkpp"):
+			row.append(f"<DKPP>{escape(str(item['dkpp']))}</DKPP>")
 		row.append(f"<NAME>{escape(item['name'])}</NAME>")
+		if item.get("description"):
+			row.append(f"<DESCRIPTION>{escape(item['description'])}</DESCRIPTION>")
 		if item.get("unit_cd"):
 			row.append(f"<UNITCD>{escape(str(item['unit_cd']))}</UNITCD>")
 		row.append(f"<UNITNM>{escape(item.get('uom') or 'шт')}</UNITNM>")
@@ -214,8 +278,15 @@ def build_sale_check(
 		row.append("</ROW>")
 		body_rows.append("".join(row))
 
+	total_xml = f"<SUM>{_fmt_sum(total)}</SUM>"
+	if no_rounding_total is not None and abs(base_total - frappe.utils.flt(total)) > 0.001:
+		rounding_sum = base_total - frappe.utils.flt(total) if rounding_sum is None else rounding_sum
+		total_xml += (
+			f"<RNDSUM>{_fmt_sum(rounding_sum)}</RNDSUM>"
+			f"<NORNDSUM>{_fmt_sum(base_total)}</NORNDSUM>"
+		)
 	body = (
-		f"<CHECKTOTAL><SUM>{_fmt_sum(total)}</SUM></CHECKTOTAL>"
+		f"<CHECKTOTAL>{total_xml}</CHECKTOTAL>"
 		+ "<CHECKPAY>" + "".join(pay_rows) + "</CHECKPAY>"
 		+ tax_xml
 		+ "<CHECKBODY>" + "".join(body_rows) + "</CHECKBODY>"

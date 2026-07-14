@@ -9,11 +9,15 @@ required_apps = ["erpnext"]
 after_install = [
     "erpnext_ua.install.ensure_tax_parameters",
     "erpnext_ua.install.ensure_pos_setup",
+	"erpnext_ua.install.ensure_prro_setup",
+	"erpnext_ua.install.ensure_pos_printers",
 ]
 
 after_migrate = [
     "erpnext_ua.install.ensure_tax_parameters",
     "erpnext_ua.install.ensure_pos_setup",
+	"erpnext_ua.install.ensure_prro_setup",
+	"erpnext_ua.install.ensure_pos_printers",
 ]
 
 doctype_js = {
@@ -28,6 +32,14 @@ doc_events = {
 }
 
 scheduler_events = {
+	"cron": {
+		"*/5 * * * *": [
+			"erpnext_ua.ua_fiscal.recovery.recover_fiscal_state",
+		],
+		"* * * * *": [
+			"erpnext_ua.ua_pos.print_service.process_print_queue",
+		],
+	},
     "daily": [
         "erpnext_ua.ua_fop.tax_calendar.update_statuses_and_notify",
         "erpnext_ua.ua_fop.income_monitor.check_income_limits",
