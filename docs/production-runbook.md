@@ -87,7 +87,10 @@ docker run -d --restart unless-stopped --name prro-signer \
 
 Scheduler кожні 5 хвилин відновлює ПРРО, щохвилини — print queue. Після аварії
 не повторюйте `/doc`, terminal sale або stale print вручну навмання: спочатку
-виконайте reconciliation; повторний чек друкуйте лише як «КОПІЯ».
+виконайте reconciliation. Для `Error` кнопка повтору спочатку запитує
+`DocumentInfoByLocalNum` і `TransactionsRegistrarState`; номер повертається
+allocator-у лише коли ДПС підтвердила, що його не спожито. Повторний чек
+друкуйте лише як «КОПІЯ».
 
 ## 7. Rollback
 

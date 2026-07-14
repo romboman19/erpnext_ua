@@ -1449,6 +1449,14 @@ def flush_offline_session(session_name: str, client=None):
 
 @frappe.whitelist()
 def reconcile_receipt(receipt_name: str, client=None) -> dict:
+	receipt = frappe.get_doc("PRRO Receipt", receipt_name)
+	with frappe.cache.lock(
+		f"erpnext_ua:prro:{receipt.cash_register}", timeout=600, blocking_timeout=30
+	):
+		return _reconcile_receipt_locked(receipt_name, client)
+
+
+def _reconcile_receipt_locked(receipt_name: str, client=None) -> dict:
 	client = client or FiscalClient()
 	receipt = frappe.get_doc("PRRO Receipt", receipt_name)
 	if receipt.status not in {"Uncertain", "Error"}:
@@ -1472,4 +1480,53 @@ def reconcile_receipt(receipt_name: str, client=None) -> dict:
 		)
 		frappe.db.commit()
 		receipt.reload()
+		return receipt.as_dict()
+
+	# Остаточна відмова не повинна назавжди зупиняти касу. Але номер можна
+	# повернути allocator-у лише коли ДПС явно очікує саме його, локально це
+	# остання спроба і жодного наступного ledger-запису не існує.
+	if receipt.status == "Error" and receipt.response_state in {"Not Sent", "Rejected"}:
+		state = client.registrar_state(register.fiscal_number, shift.kep_key) or {}
+		server_next = _state_value(state, "NextLocalNum")
+		local_next = int(
+			frappe.db.get_value(
+				"PRRO Cash Register", register.name, "next_local_number", for_update=True
+			) or 1
+		)
+		has_later = bool(
+			frappe.db.exists(
+				"PRRO Receipt",
+				{
+					"cash_register": register.name,
+					"local_number": (">", receipt.local_number),
+					"status": ("!=", "Cancelled"),
+				},
+			)
+		)
+		if (
+			server_next is not None
+			and int(server_next) == int(receipt.local_number)
+			and local_next == int(receipt.local_number) + 1
+			and not has_later
+		):
+			archived_idem = f"cancelled:{receipt.name}:{(receipt.idem_key or '')[-80:]}"[:140]
+			frappe.db.set_value(
+				"PRRO Receipt",
+				receipt.name,
+				{
+					"status": "Cancelled",
+					"idem_key": archived_idem,
+					"error_message": (
+						f"{receipt.error_message or 'Документ відхилено'}. "
+						"ДПС підтвердила, що локальний номер не спожито; дозволено контрольований повтор."
+					)[:500],
+				},
+				update_modified=False,
+			)
+			values = {"next_local_number": int(receipt.local_number)}
+			if not register.active_offline_session:
+				values["runtime_state"] = "Online"
+			frappe.db.set_value("PRRO Cash Register", register.name, values, update_modified=False)
+			frappe.db.commit()
+			receipt.reload()
 	return receipt.as_dict()

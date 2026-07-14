@@ -10,6 +10,7 @@ import frappe
 
 from erpnext_ua.ua_fiscal import orchestration as orch
 from erpnext_ua.ua_fiscal import xml_builder as xb
+from erpnext_ua.ua_fiscal.fiscal_client import FiscalServerError
 
 TESTNAME = "_prro_selftest"
 
@@ -38,6 +39,7 @@ class FakeFiscalClient:
 		self.shift_state = 0
 		self.device_calls = 0
 		self.state_calls = 0
+		self.reject_next = False
 
 	def device_register(self, fiscal_number, device_id, kep_key, forced=False):
 		assert len(device_id) == 64 and not forced
@@ -56,6 +58,9 @@ class FakeFiscalClient:
 			"Closed": False,
 		}
 
+	def document_info_by_local_number(self, fiscal_number, local_number, kep_key):
+		return None
+
 	def sign(self, xml: bytes, kep_key: str, *, online: bool = True) -> bytes:
 		xb.validate_document(xml)  # кине ValueError, якщо XML невалідний
 		from lxml import etree
@@ -67,6 +72,13 @@ class FakeFiscalClient:
 		from lxml import etree
 
 		root = etree.fromstring(signed.removeprefix(b"SIGNED:"))
+		if self.reject_next:
+			self.reject_next = False
+			return (
+				'<?xml version="1.0" encoding="windows-1251"?>'
+				"<TICKET><UID>x</UID><ERRORCODE>9</ERRORCODE>"
+				"<ERRORTEXT>test rejection</ERRORTEXT><VER>1</VER></TICKET>"
+			).encode("windows-1251")
 		doctype = root.findtext(".//DOCTYPE")
 		if doctype == str(xb.DOCTYPE_OPEN_SHIFT):
 			self.shift_state = 1
@@ -128,16 +140,53 @@ def run():
 		payments=[{"code": 0, "name": "ГОТІВКА", "sum": 450.0}],
 		total=450.0, receipt_type="Повернення", related_receipt=r1, client=client)
 
+	# Перевірка безпечного recovery остаточно відхиленого останнього номера:
+	# ДПС не спожила ORDERNUM=4, reconcile повертає allocator і той самий
+	# бізнес-idem можна повторити без пропуску або дублювання.
+	client.reject_next = True
+	try:
+		orch.fiscalize_sale(
+			TESTNAME,
+			kep.name,
+			items=[{"code": "SKU2", "name": "Чохол", "uom": "шт", "qty": 1,
+					"price": 10.0, "amount": 10.0}],
+			payments=[{"code": 0, "name": "ГОТІВКА", "sum": 10.0}],
+			total=10.0,
+			idem_key="rejected-retry",
+			client=client,
+		)
+	except FiscalServerError:
+		pass
+	else:
+		raise AssertionError("ДПС rejection мав завершити першу спробу помилкою")
+	rejected = frappe.get_doc("PRRO Receipt", {"idem_key": "rejected-retry"})
+	assert rejected.status == "Error" and rejected.response_state == "Rejected"
+	orch.reconcile_receipt(rejected.name, client=client)
+	rejected.reload()
+	assert rejected.status == "Cancelled"
+	assert frappe.db.get_value("PRRO Cash Register", TESTNAME, "next_local_number") == 4
+	retried = orch.fiscalize_sale(
+		TESTNAME,
+		kep.name,
+		items=[{"code": "SKU2", "name": "Чохол", "uom": "шт", "qty": 1,
+				"price": 10.0, "amount": 10.0}],
+		payments=[{"code": 0, "name": "ГОТІВКА", "sum": 10.0}],
+		total=10.0,
+		idem_key="rejected-retry",
+		client=client,
+	)
+	assert frappe.db.get_value("PRRO Receipt", retried, "local_number") == 4
+
 	orch.close_shift(TESTNAME, kep.name, client=client)
 	shift = frappe.get_doc("PRRO Shift", shift_name)
 	assert shift.status == "Closed"
 	assert not frappe.db.get_value("PRRO Cash Register", TESTNAME, "current_shift")
-	assert shift.sales_total == 900.0 and shift.refunds_total == 450.0
+	assert shift.sales_total == 910.0 and shift.refunds_total == 450.0
 
 	nums = sorted(frappe.db.get_value("PRRO Receipt", r, "local_number") for r in (r1, r2))
 	assert nums == [2, 3], nums  # відкриття=1, чеки=2,3 — наскрізна нумерація
-	assert client.sent == ["CHECK", "CHECK", "CHECK", "ZREP", "CHECK"], client.sent
-	assert client.device_calls == 5 and client.state_calls == 5
+	assert client.sent == ["CHECK", "CHECK", "CHECK", "CHECK", "CHECK", "ZREP", "CHECK"], client.sent
+	assert client.device_calls == 7 and client.state_calls == 8
 
 	print(f"OK: shift {shift_name} відкрито→2 чеки→Z-звіт {shift.z_report_fiscal_number}→закрито; "
 		  f"local nums {nums}; docs {client.sent}")

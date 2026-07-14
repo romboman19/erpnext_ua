@@ -22,6 +22,7 @@
 | offline package | length-prefixed LE, до 100 документів, ціль <200 KiB, підпис пакета |
 | повернення online | `TransactionsRegistrarState` з `OfflineSessionId`/`OfflineSeed` перед `/pck` |
 | невизначена доставка | `Uncertain` + `DocumentInfoByLocalNum`; без сліпого повтору `/doc` |
+| остаточна відмова | номер звільняється лише якщо DPS state очікує його і це останній локальний ledger-запис |
 | втрата зв'язку після передачі | `REVOKELASTONLINEDOC` і контрольований перехід offline |
 | продаж/повернення | зв'язок з первинним фіскальним документом і реквізити повернення |
 | Z-звіт | агрегування продажів/повернень, способів оплат, податків і службових сум |
@@ -35,6 +36,7 @@
 - структура offline-пакета й ліміт 100 документів;
 - online: DeviceRegister/state → open → sale → return → Z → close, зі звіркою номера перед усіма 5 документами;
 - timeout після передачі → offline begin → sale → Z/close/end → `/pck` → online;
+- відхилення ticket → server reconciliation → контрольований повтор того самого `ORDERNUM`;
 - XSD-валідація кожного XML у наскрізних тестах;
 - XSD-regression для невключеного ПДВ і офіційної моделі заокруглення;
 - signer roundtrip, tamper detection, TSP policy, HTTP auth/limits;

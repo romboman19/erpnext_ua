@@ -1346,6 +1346,15 @@ def retry_fiscalization(pos_session_token: str, order: str) -> dict:
 	doc = _owned_order(session, order, {"Fiscal Pending", "Posted", "Manual Review"})
 	if not doc.sales_invoice:
 		frappe.throw(_("Sales Invoice ще не створено"))
+	failed_receipt = doc.prro_receipt or frappe.db.get_value(
+		"PRRO Receipt", {"pos_order": doc.name}, "name", order_by="local_number desc"
+	)
+	if failed_receipt and frappe.db.get_value("PRRO Receipt", failed_receipt, "status") == "Error":
+		# Reconcile спершу перевіряє DocumentInfoByLocalNum. Повтор дозволяється
+		# лише якщо registrar state підтвердив, що останній номер не спожито.
+		from erpnext_ua.ua_fiscal.orchestration import reconcile_receipt
+
+		reconcile_receipt(failed_receipt)
 	desk = frappe.get_doc("POS Cash Desk", doc.cash_desk)
 	receipt = _fiscalize(doc, desk, frappe.get_doc("Sales Invoice", doc.sales_invoice))
 	status = frappe.db.get_value("PRRO Receipt", receipt, "status") if receipt else None
