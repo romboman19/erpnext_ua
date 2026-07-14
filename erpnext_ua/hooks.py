@@ -1,7 +1,7 @@
 app_name = "erpnext_ua"
-app_title = "ERPNext Ukraine"
+app_title = "ERPNext Україна"
 app_publisher = "HUNTER.rv"
-app_description = "Ukraine business layer for ERPNext: FOP, cash desk/POS, PRRO, tax controls and documents"
+app_description = "Український бізнес-модуль ERPNext: ФОП, каса, ПРРО, податковий контроль і документи"
 app_email = "it@hunter.rv.ua"
 app_license = "MIT"
 required_apps = ["erpnext"]

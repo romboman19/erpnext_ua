@@ -1,15 +1,15 @@
 frappe.ui.form.on("PB POS Terminal", {
   refresh(frm) {
     if (frm.is_new()) return;
-    frm.add_custom_button(__("Test connection"), () => call("test_connection"), __("Terminal"));
-    frm.add_custom_button(__("Test payment"), () => {
-      frappe.prompt({ fieldname: "amount", fieldtype: "Currency", label: __("Amount"), reqd: 1 },
+    frm.add_custom_button("Перевірити з’єднання", () => call("test_connection"), "Термінал");
+    frm.add_custom_button("Тестова оплата", () => {
+      frappe.prompt({ fieldname: "amount", fieldtype: "Currency", label: "Сума", reqd: 1 },
         (v) => call("test_payment", { amount: v.amount }));
-    }, __("Terminal"));
-    frm.add_custom_button(__("Check operation"), () => {
-      frappe.prompt({ fieldname: "operation_id", fieldtype: "Data", label: __("Operation ID"), reqd: 1 },
+    }, "Термінал");
+    frm.add_custom_button("Перевірити операцію", () => {
+      frappe.prompt({ fieldname: "operation_id", fieldtype: "Data", label: "Ідентифікатор операції", reqd: 1 },
         (v) => call("operation_status", { operation_id: v.operation_id }));
-    }, __("Terminal"));
+    }, "Термінал");
 
     function call(method, args = {}) {
       frappe.call({
@@ -21,4 +21,3 @@ frappe.ui.form.on("PB POS Terminal", {
     }
   },
 });
-

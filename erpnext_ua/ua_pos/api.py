@@ -11,7 +11,12 @@ import frappe
 from frappe import _
 from frappe.rate_limiter import rate_limit
 
-from erpnext_ua.ua_fiscal.payment import canonical_payform_name, fiscal_payform_name
+from erpnext_ua.ua_fiscal.payment import (
+	canonical_payform_name,
+	configured_payment_methods,
+	fiscal_payform_name,
+	resolve_payment_method,
+)
 from erpnext_ua.ua_pos.services.common import (
 	SESSION_TTL,
 	active_shift,
@@ -147,6 +152,7 @@ def session_state(pos_session_token: str) -> dict:
 		"employee_name": employee_name or session["employee"],
 		"shift": shift,
 		"desk": desk,
+		"payment_methods": configured_payment_methods(),
 		"unfinished_orders": unfinished,
 	}
 
@@ -1415,11 +1421,18 @@ def _fiscalize(order, desk, si):
 	for payment in order.payments_plan:
 		if payment.status != "Confirmed":
 			continue
-		configured_code = frappe.db.get_value("Mode of Payment", payment.mode_of_payment, "ua_payformcd")
+		configured_code = payment.get("prro_payment_code")
+		if configured_code in (None, ""):
+			configured_code = frappe.db.get_value("Mode of Payment", payment.mode_of_payment, "ua_payformcd")
 		code = int(configured_code) if configured_code not in (None, "") else (0 if payment.kind == "Cash" else 1)
 		row = {
 			"code": code,
-			"name": fiscal_payform_name(payment.kind, code, payment.mode_of_payment),
+			"name": fiscal_payform_name(
+				payment.kind,
+				code,
+				payment.get("prro_payment_means") or payment.mode_of_payment,
+			),
+			"form": payment.get("prro_payment_form") or ("ГОТІВКА" if code == 0 else "БЕЗГОТІВКОВА"),
 			"sum": payment.amount,
 		}
 		if payment.kind == "Cash":
@@ -1500,7 +1513,7 @@ def _completed_returns(original_order: str) -> list[str]:
 def _return_summary(original) -> dict:
 	return_names = _completed_returns(original.name)
 	returned_by_item = defaultdict(float)
-	refunded_by_kind = defaultdict(float)
+	refunded_by_method = defaultdict(float)
 	if return_names:
 		for row in frappe.get_all(
 			"POS Order Item",
@@ -1511,9 +1524,9 @@ def _return_summary(original) -> dict:
 		for row in frappe.get_all(
 			"POS Order Payment",
 			filters={"parent": ("in", return_names), "status": "Confirmed"},
-			fields=["kind", "amount"],
+			fields=["kind", "mode_of_payment", "amount"],
 		):
-			refunded_by_kind[row.kind] += frappe.utils.flt(row.amount)
+			refunded_by_method[(row.kind, row.mode_of_payment)] += frappe.utils.flt(row.amount)
 	items = []
 	for row in original.items:
 		available = max(0, frappe.utils.flt(row.qty) - returned_by_item[row.name])
@@ -1530,21 +1543,26 @@ def _return_summary(original) -> dict:
 				"amount": row.amount,
 			}
 		)
-	paid_by_kind = defaultdict(float)
-	mode_by_kind = {}
+	paid_by_method = defaultdict(float)
+	method_snapshot = {}
 	for row in original.payments_plan:
 		if row.status == "Confirmed":
-			paid_by_kind[row.kind] += frappe.utils.flt(row.amount)
-			mode_by_kind.setdefault(row.kind, row.mode_of_payment)
+			key = (row.kind, row.mode_of_payment)
+			paid_by_method[key] += frappe.utils.flt(row.amount)
+			method_snapshot[key] = row
 	refund_limits = [
 		{
-			"kind": kind,
-			"mode_of_payment": mode_by_kind[kind],
+			"kind": key[0],
+			"mode_of_payment": key[1],
+			"payment_form": method_snapshot[key].get("prro_payment_form"),
+			"payment_means": method_snapshot[key].get("prro_payment_means") or key[1],
+			"payment_code": method_snapshot[key].get("prro_payment_code"),
+			"payment_context": method_snapshot[key].get("payment_context") or "Звичайна оплата",
 			"paid": amount,
-			"refunded": refunded_by_kind[kind],
-			"available": max(0, amount - refunded_by_kind[kind]),
+			"refunded": refunded_by_method[key],
+			"available": max(0, amount - refunded_by_method[key]),
 		}
-		for kind, amount in paid_by_kind.items()
+		for key, amount in paid_by_method.items()
 	]
 	return {"items": items, "refund_limits": refund_limits}
 
@@ -1631,13 +1649,20 @@ def create_return_order(pos_session_token: str, token: str, items, idem_key: str
 
 def _validate_return_payments(order, payment_rows: list[dict]):
 	original = frappe.get_doc("POS Order", order.return_against)
-	limits = {row["kind"]: frappe.utils.flt(row["available"]) for row in _return_summary(original)["refund_limits"]}
+	limits = {
+		(row["kind"], row["mode_of_payment"]): frappe.utils.flt(row["available"])
+		for row in _return_summary(original)["refund_limits"]
+	}
 	requested = defaultdict(float)
 	for row in payment_rows:
-		requested[row.get("kind")] += frappe.utils.flt(row.get("amount"))
-	for kind, amount in requested.items():
-		if amount > limits.get(kind, 0) + 0.001:
-			frappe.throw(_("Сума повернення способом {0} перевищує доступний ліміт {1}").format(kind, limits.get(kind, 0)))
+		requested[(row.get("kind"), row.get("mode_of_payment"))] += frappe.utils.flt(row.get("amount"))
+	for key, amount in requested.items():
+		if amount > limits.get(key, 0) + 0.001:
+			frappe.throw(
+				_("Сума повернення способом {0} перевищує доступний ліміт {1}").format(
+					key[1], limits.get(key, 0)
+				)
+			)
 
 
 def _record_birthday_benefit(order):
@@ -1809,11 +1834,46 @@ def checkout_start(pos_session_token: str, order: str, payments, idem_key: str) 
 	payment_rows = parse_rows(payments)
 	if not payment_rows:
 		frappe.throw(_("Вкажіть спосіб оплати"))
+	desk = frappe.get_doc("POS Cash Desk", doc.cash_desk)
+	return_methods = {}
+	if doc.order_type == "Return":
+		original = frappe.get_doc("POS Order", doc.return_against)
+		return_methods = {
+			(row["mode_of_payment"], row.get("payment_form") or ""): row
+			for row in _return_summary(original)["refund_limits"]
+		}
 	for row in payment_rows:
-		if row.get("kind") not in {"Cash", "Card", "IBAN", "Bonus", "Installment"}:
-			frappe.throw(_("Некоректний тип оплати"))
-		if not frappe.db.exists("Mode of Payment", row.get("mode_of_payment")):
-			frappe.throw(_("Спосіб оплати {0} не знайдено").format(row.get("mode_of_payment")))
+		return_snapshot = return_methods.get((row.get("mode_of_payment"), row.get("payment_form") or ""))
+		if return_snapshot and return_snapshot.get("payment_code") not in (None, ""):
+			method = {
+				"mode_of_payment": return_snapshot["mode_of_payment"],
+				"kind": return_snapshot["kind"],
+				"payment_form": return_snapshot.get("payment_form") or ("ГОТІВКА" if return_snapshot["kind"] == "Cash" else "БЕЗГОТІВКОВА"),
+				"payment_means": return_snapshot.get("payment_means") or return_snapshot["mode_of_payment"],
+				"payment_code": int(return_snapshot["payment_code"]),
+				"payment_context": return_snapshot.get("payment_context") or "Звичайна оплата",
+				"requires_terminal": int(return_snapshot["kind"] == "Card"),
+				"currency": "UAH",
+			}
+		else:
+			method = resolve_payment_method(
+				row.get("mode_of_payment"),
+				requested_form=row.get("payment_form"),
+				context=row.get("payment_context"),
+			)
+		row.update(
+			{
+				"mode_of_payment": method["mode_of_payment"],
+				"kind": method["kind"],
+				"prro_payment_form": method["payment_form"],
+				"prro_payment_means": method["payment_means"],
+				"prro_payment_code": method["payment_code"],
+				"payment_context": method["payment_context"],
+				"currency": method["currency"],
+			}
+		)
+		if method["requires_terminal"] and not desk.terminal:
+			frappe.throw(_("Для способу оплати {0} потрібен інтегрований платіжний термінал").format(method["payment_means"]))
 	if abs(sum(frappe.utils.flt(row.get("amount")) for row in payment_rows) - doc.grand_total) > 0.01:
 		frappe.throw(_("Сума оплат має дорівнювати сумі чека"))
 	if doc.fiscal_mode == "Non Fiscal" and len(payment_rows) > 1:
@@ -1823,7 +1883,6 @@ def checkout_start(pos_session_token: str, order: str, payments, idem_key: str) 
 		cash_refund = sum(frappe.utils.flt(row.get("amount")) for row in payment_rows if row.get("kind") == "Cash")
 		if cash_refund > _cash_balance(doc.operational_shift) + 0.001:
 			frappe.throw(_("У касі недостатньо готівки для повернення"))
-	desk = frappe.get_doc("POS Cash Desk", doc.cash_desk)
 	if doc.fiscal_mode == "Fiscal" and any(row.get("kind") == "Card" for row in payment_rows):
 		if not desk.terminal:
 			frappe.throw(_("Для цієї каси не налаштовано банківський термінал"))

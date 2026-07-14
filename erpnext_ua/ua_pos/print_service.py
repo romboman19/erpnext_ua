@@ -150,9 +150,14 @@ def fiscal_snapshot(receipt, *, include_qr_image: bool = False) -> dict:
 			}
 		)
 	payments = []
-	for row in root.findall("./CHECKPAY/ROW"):
+	payment_snapshot = frappe.parse_json(getattr(receipt, "payment_summary", None) or "[]") or []
+	for payment_index, row in enumerate(root.findall("./CHECKPAY/ROW")):
 		code = int(_xml_text(row, "PAYFORMCD", "0") or 0)
 		payment_name = canonical_payform_name(code, _xml_text(row, "PAYFORMNM"))
+		payment_meta = payment_snapshot[payment_index] if payment_index < len(payment_snapshot) else {}
+		payment_form = payment_meta.get("form") or (
+			"ГОТІВКА" if code == 0 else ("БЕЗГОТІВКОВА" if code in {1, 2, 3, 100000} else "ІНШЕ")
+		)
 		paysys = []
 		for payment_system in row.findall("./PAYSYS/ROW"):
 			paysys.append(
@@ -175,7 +180,7 @@ def fiscal_snapshot(receipt, *, include_qr_image: bool = False) -> dict:
 		payments.append(
 			{
 				"code": code,
-				"form": "ГОТІВКА" if code == 0 else ("БЕЗГОТІВКОВА" if code == 1 else "ІНШЕ"),
+				"form": payment_form,
 				"means": payment_name,
 				"amount": _xml_text(row, "SUM"),
 				"provided": _xml_text(row, "PROVIDED"),
