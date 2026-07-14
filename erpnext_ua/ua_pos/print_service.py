@@ -138,6 +138,10 @@ def fiscal_snapshot(receipt, *, include_qr_image: bool = False) -> dict:
 				"price": _xml_text(row, "PRICE"),
 				"letters": _xml_text(row, "LETTERS"),
 				"amount": _xml_text(row, "COST"),
+				"discount_type": int(_xml_text(row, "DISCOUNTTYPE", "0") or 0),
+				"subtotal": _xml_text(row, "SUBTOTAL"),
+				"discount_percent": _xml_text(row, "DISCOUNTPERCENT"),
+				"discount_sum": _xml_text(row, "DISCOUNTSUM"),
 				"excise_labels": [value for value in excise_labels if value],
 				"tobacco_weight": _xml_text(row, "TOBACCOWEIGHT"),
 				"tobacco_qty": _xml_text(row, "TOBACCOQT"),
@@ -176,7 +180,7 @@ def fiscal_snapshot(receipt, *, include_qr_image: bool = False) -> dict:
 				"amount": _xml_text(row, "SUM"),
 				"provided": _xml_text(row, "PROVIDED"),
 				"change": _xml_text(row, "REMAINS"),
-				"currency": "UAH",
+				"currency": "грн",
 				"paysys": paysys,
 			}
 		)
@@ -268,11 +272,20 @@ def render_browser_fiscal_receipt(snapshot: dict, *, lookup_token: str | None = 
 			codes.append(f"Міцність алкогольного напою: {esc(row['alcohol_strength'])}%")
 		code_html = f"<br><small>{'<br>'.join(codes)}</small>" if codes else ""
 		description = f"<br>{esc(row['description'])}" if row.get("description") else ""
+		discount = ""
+		if frappe.utils.flt(row.get("discount_sum")):
+			is_surcharge = int(row.get("discount_type") or 0) == 1
+			label = "Надбавка" if is_surcharge else "Знижка"
+			sign = "+" if is_surcharge else "−"
+			percent = (
+				f" {money(row['discount_percent'])}%" if row.get("discount_percent") not in (None, "") else ""
+			)
+			discount = f"<br><small>{label}{percent}: {sign}{money(row['discount_sum'])} грн</small>"
 		item_rows.append(
 			"<tr><td>"
 			f"<b>{esc(row.get('name'))}</b>{description}{code_html}<br>"
-			f"{esc(row.get('qty'))} {esc(row.get('uom'))} × {money(row.get('price'))}"
-			f"</td><td>{money(row.get('amount'))} UAH {esc(row.get('letters'))}</td></tr>"
+			f"{esc(row.get('qty'))} {esc(row.get('uom'))} × {money(row.get('price'))}{discount}"
+			f"</td><td>{money(row.get('amount'))} грн {esc(row.get('letters'))}</td></tr>"
 		)
 
 	tax_rows = []
@@ -280,7 +293,7 @@ def render_browser_fiscal_receipt(snapshot: dict, *, lookup_token: str | None = 
 		label = "ПДВ" if int(row.get("type") or 0) == 0 else (row.get("name") or "ПОДАТОК")
 		tax_rows.append(
 			f"<tr><td>{esc(label)} {esc(row.get('letter'))} {money(row.get('rate'))}%</td>"
-			f"<td>{money(row.get('amount'))} UAH</td></tr>"
+			f"<td>{money(row.get('amount'))} грн</td></tr>"
 		)
 
 	is_return = snapshot.get("operation") == "ПОВЕРНЕННЯ"
@@ -329,7 +342,7 @@ def render_browser_fiscal_receipt(snapshot: dict, *, lookup_token: str | None = 
 		)
 	rounding = ""
 	if frappe.utils.flt(snapshot.get("rounding")):
-		rounding = f"<tr><td>Заокруглення</td><td>{money(snapshot['rounding'])} UAH</td></tr>"
+		rounding = f"<tr><td>Заокруглення</td><td>{money(snapshot['rounding'])} грн</td></tr>"
 	offline_control = ""
 	if snapshot.get("offline_control_number"):
 		offline_control = f"<br>Контрольне число: {esc(snapshot['offline_control_number'])}"
@@ -344,15 +357,15 @@ def render_browser_fiscal_receipt(snapshot: dict, *, lookup_token: str | None = 
 		)
 
 	summary_rows = (
-		f'<tr><td><b>СУМА</b></td><td><b>{money(snapshot.get("total"))} UAH</b></td></tr>'
+		f'<tr><td><b>СУМА</b></td><td><b>{money(snapshot.get("total"))} грн</b></td></tr>'
 		if is_return
-		else f'<tr><td><b>УСЬОГО</b></td><td><b>{money(snapshot.get("total"))} UAH</b></td></tr>'
+		else f'<tr><td><b>УСЬОГО</b></td><td><b>{money(snapshot.get("total"))} грн</b></td></tr>'
 	)
 	summary_rows += "".join(tax_rows)
 	if not is_return:
 		summary_rows += rounding
 		summary_rows += (
-			f'<tr><td><b>ДО СПЛАТИ</b></td><td><b>{money(snapshot.get("total"))} UAH</b></td></tr>'
+			f'<tr><td><b>ДО СПЛАТИ</b></td><td><b>{money(snapshot.get("total"))} грн</b></td></tr>'
 		)
 	software_product = f'<br><b>{esc(snapshot.get("software_product"))}</b>'
 
@@ -462,20 +475,30 @@ def render_order_receipt(order, printer, *, is_copy: bool = False) -> bytes:
 			f"{item['qty']} {item.get('uom') or ''} × {frappe.utils.flt(item['price']):.2f}",
 			amount,
 		)
+		if frappe.utils.flt(item.get("discount_sum")):
+			is_surcharge = int(item.get("discount_type") or 0) == 1
+			label = "НАДБАВКА" if is_surcharge else "ЗНИЖКА"
+			sign = "+" if is_surcharge else "-"
+			percent = (
+				f" {frappe.utils.flt(item['discount_percent']):.2f}%"
+				if item.get("discount_percent") not in (None, "")
+				else ""
+			)
+			output.pair(f"{label}{percent}", f"{sign}{frappe.utils.flt(item['discount_sum']):.2f} грн")
 	output.rule()
 	is_return = bool(receipt and snapshot["operation"] == "ПОВЕРНЕННЯ")
-	output.pair("СУМА" if is_return else "УСЬОГО", f"{frappe.utils.flt(total):.2f} UAH", bold=True)
+	output.pair("СУМА" if is_return else "УСЬОГО", f"{frappe.utils.flt(total):.2f} грн", bold=True)
 	if receipt:
 		for tax in snapshot["taxes"]:
 			label = "ПДВ" if tax["type"] == 0 else (tax["name"] or "ПОДАТОК")
 			output.pair(
 				f"{label} {tax['letter']} {frappe.utils.flt(tax['rate']):g}%".strip(),
-				f"{frappe.utils.flt(tax['amount']):.2f} UAH",
+				f"{frappe.utils.flt(tax['amount']):.2f} грн",
 			)
 		if snapshot["rounding"] and not is_return:
-			output.pair("Заокруглення", f"{frappe.utils.flt(snapshot['rounding']):.2f} UAH")
+			output.pair("Заокруглення", f"{frappe.utils.flt(snapshot['rounding']):.2f} грн")
 		if not is_return:
-			output.pair("ДО СПЛАТИ", f"{frappe.utils.flt(total):.2f} UAH", bold=True)
+			output.pair("ДО СПЛАТИ", f"{frappe.utils.flt(total):.2f} грн", bold=True)
 		for payment in payments:
 			output.pair(payment["form"], f"{frappe.utils.flt(payment['amount']):.2f} {payment['currency']}")
 			if payment["means"] and payment["means"].upper() != payment["form"]:
@@ -492,7 +515,7 @@ def render_order_receipt(order, printer, *, is_copy: bool = False) -> bytes:
 				if payment_system["device_id"]:
 					output.text(f"Платіжний пристрій: {payment_system['device_id']}")
 				if payment_system["commission"]:
-					output.text(f"Комісія: {frappe.utils.flt(payment_system['commission']):.2f} UAH")
+					output.text(f"Комісія: {frappe.utils.flt(payment_system['commission']):.2f} грн")
 				output.text(f"Вид операції: {snapshot['operation']}")
 				if payment_system["epz_details"]:
 					output.text(f"ЕПЗ {payment_system['epz_details']}")
@@ -508,7 +531,7 @@ def render_order_receipt(order, printer, *, is_copy: bool = False) -> bytes:
 				if payment_details:
 					output.text(f"ПЛАТІЖНА СИСТЕМА {payment_details}")
 		if not is_return and any(payment["code"] == 0 for payment in payments):
-			output.pair("РЕШТА", f"{frappe.utils.flt(snapshot['change']):.2f} UAH")
+			output.pair("РЕШТА", f"{frappe.utils.flt(snapshot['change']):.2f} грн")
 	else:
 		for payment in payments:
 			output.pair(payment["name"], _money(payment["amount"]))

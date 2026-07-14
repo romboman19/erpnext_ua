@@ -44,7 +44,11 @@ def _invoice_lines(si) -> list[dict]:
 		net_rate = it.get("net_rate")
 		amount = abs(frappe.utils.flt(net_amount if net_amount is not None else it.get("amount")))
 		qty = abs(frappe.utils.flt(it.qty))
-		lines.append({
+		final_rate = abs(frappe.utils.flt(net_rate if net_rate is not None else it.rate))
+		gross_rate = abs(frappe.utils.flt(it.get("price_list_rate") or it.get("rate") or final_rate))
+		subtotal = frappe.utils.flt(gross_rate * qty, 2)
+		discount_sum = frappe.utils.flt(max(0, subtotal - amount), 2)
+		line = {
 			"code": it.item_code or it.item_name,
 			"barcode": it.get("barcode"),
 			"uktzed": it.get("customs_tariff_number") or item_meta.get("customs_tariff_number"),
@@ -54,9 +58,19 @@ def _invoice_lines(si) -> list[dict]:
 			"name": it.item_name or it.item_code,
 			"uom": it.uom or it.stock_uom or "шт",
 			"qty": qty,
-			"price": abs(frappe.utils.flt(net_rate if net_rate is not None else it.rate)),
+			"price": gross_rate if discount_sum else final_rate,
 			"amount": amount,
-		})
+		}
+		if discount_sum:
+			line.update(
+				{
+					"discount_type": 0,
+					"subtotal": subtotal,
+					"discount_percent": frappe.utils.flt(discount_sum * 100 / subtotal, 2) if subtotal else 0,
+					"discount_sum": discount_sum,
+				}
+			)
+		lines.append(line)
 	return lines
 
 

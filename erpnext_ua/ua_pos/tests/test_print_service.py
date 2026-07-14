@@ -59,9 +59,12 @@ class TestPrintService(unittest.TestCase):
 			"<CHECKTOTAL><SUM>450.00</SUM></CHECKTOTAL>"
 			"<CHECKPAY><ROW><PAYFORMCD>0</PAYFORMCD><PAYFORMNM>Cash</PAYFORMNM>"
 			"<SUM>450.00</SUM><PROVIDED>500.00</PROVIDED><REMAINS>50.00</REMAINS></ROW></CHECKPAY>"
-			"<CHECKBODY><ROW><NAME>Ніж</NAME><AMOUNT>1</AMOUNT><PRICE>450.00</PRICE>"
-			"<COST>450.00</COST><TOBACCOQT>20</TOBACCOQT><TOBACCOWEIGHT>0.8</TOBACCOWEIGHT>"
-			"<ALCOVOL>0.7</ALCOVOL><ALCOSTRENGTH>40</ALCOSTRENGTH></ROW></CHECKBODY></CHECK>"
+			"<CHECKBODY><ROW><NAME>Ніж</NAME><AMOUNT>1</AMOUNT>"
+			"<TOBACCOWEIGHT>0.8</TOBACCOWEIGHT><TOBACCOQT>20</TOBACCOQT>"
+			"<ALCOSTRENGTH>40</ALCOSTRENGTH><ALCOVOL>0.7</ALCOVOL>"
+			"<PRICE>500.00</PRICE><COST>450.00</COST><DISCOUNTTYPE>0</DISCOUNTTYPE>"
+			"<SUBTOTAL>500.00</SUBTOTAL><DISCOUNTPERCENT>10.00</DISCOUNTPERCENT>"
+			"<DISCOUNTSUM>50.00</DISCOUNTSUM></ROW></CHECKBODY></CHECK>"
 		)
 		receipt = frappe._dict(
 			{
@@ -99,6 +102,8 @@ class TestPrintService(unittest.TestCase):
 		self.assertIn("ФН ПРРО 4000545102".encode("cp1251"), payload)
 		self.assertIn("ГОТІВКА".encode("cp1251"), payload)
 		self.assertIn("ОТРИМАНО".encode("cp1251"), payload)
+		self.assertIn("ЗНИЖКА 10.00%".encode("cp1251"), payload)
+		self.assertIn(b"-50.00", payload)
 		self.assertIn("ПРРО ERPNext Україна".encode("cp1251"), payload)
 		self.assertIn(b"\x1dkI", payload)
 		self.assertNotIn(b"Cash", payload)
@@ -117,8 +122,10 @@ class TestPrintService(unittest.TestCase):
 		self.assertIn("ФН ПРРО 4000545102", html)
 		self.assertIn("return-token", html)
 		self.assertIn("data:image/svg+xml;base64,", html)
-		self.assertIn("ОТРИМАНО: 500.00 UAH", html)
-		self.assertIn("РЕШТА: 50.00 UAH", html)
+		self.assertIn("ОТРИМАНО: 500.00 грн", html)
+		self.assertIn("РЕШТА: 50.00 грн", html)
+		self.assertIn("Знижка 10.00%: −50.00 грн", html)
+		self.assertNotIn("UAH", html)
 		self.assertIn("Кількість тютюнових виробів в одиниці: 20", html)
 		self.assertIn("Об’єм алкогольного напою: 0.7 л", html)
 		self.assertIn("ПРРО ERPNext Україна", html)

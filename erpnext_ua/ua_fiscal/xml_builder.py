@@ -188,7 +188,8 @@ def build_sale_check(
 	"""Чек реалізації/повернення (тип за DOCSUBTYPE у head).
 
 	items:    [{code, name, uom, qty, price, amount, uktzed?, unit_cd?, letters?,
-	            excise_labels?, tobacco_weight?, tobacco_qty?, alcohol_strength?, alcohol_volume?}]
+	            discount_type?, subtotal?, discount_percent?, discount_sum?, excise_labels?,
+	            tobacco_weight?, tobacco_qty?, alcohol_strength?, alcohol_volume?}]
 	payments: [{code, name, sum, provided?, remains?}]  (code: 0-готівка, 1-картка)
 	taxes:    [{type, name, letter, prc, sign, turnover, sum}]  (лише для платників ПДВ)
 	"""
@@ -287,6 +288,22 @@ def build_sale_check(
 		if item.get("letters"):
 			row.append(f"<LETTERS>{escape(item['letters'])}</LETTERS>")
 		row.append(f"<COST>{_fmt_sum(item['amount'])}</COST>")
+		if item.get("discount_sum") is not None and frappe.utils.flt(item.get("discount_sum")):
+			discount_type = int(item.get("discount_type", 0))
+			if discount_type not in (0, 1):
+				raise ValueError("Тип знижки/надбавки має бути 0 або 1")
+			subtotal = item.get("subtotal")
+			if subtotal is None:
+				subtotal = frappe.utils.flt(item["amount"]) + (
+					frappe.utils.flt(item["discount_sum"])
+					if discount_type == 0
+					else -frappe.utils.flt(item["discount_sum"])
+				)
+			row.append(f"<DISCOUNTTYPE>{discount_type}</DISCOUNTTYPE>")
+			row.append(f"<SUBTOTAL>{_fmt_sum(subtotal)}</SUBTOTAL>")
+			if item.get("discount_percent") is not None:
+				row.append(f"<DISCOUNTPERCENT>{_fmt_sum(item['discount_percent'])}</DISCOUNTPERCENT>")
+			row.append(f"<DISCOUNTSUM>{_fmt_sum(item['discount_sum'])}</DISCOUNTSUM>")
 		excise_labels = [str(value).strip() for value in (item.get("excise_labels") or []) if str(value).strip()]
 		if excise_labels:
 			labels_xml = "".join(

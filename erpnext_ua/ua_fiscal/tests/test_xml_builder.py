@@ -95,6 +95,25 @@ class TestFiscalTotals(unittest.TestCase):
 		self.assertEqual(root.findtext("CHECKPAY/ROW/PAYSYS/ROW/POSTRANSDATE"), "14072026203741")
 		self.assertEqual(root.findtext("CHECKPAY/ROW/PAYSYS/ROW/DEVICEID"), "TERM-1")
 
+	def test_line_discount_is_explicit_and_xsd_valid(self):
+		xml = xb.build_sale_check(
+			self._head(),
+			items=[{
+				"code": "SKU", "name": "Товар зі знижкою", "uom": "шт", "qty": 2,
+				"price": 100, "amount": 180, "subtotal": 200, "discount_type": 0,
+				"discount_percent": 10, "discount_sum": 20,
+			}],
+			payments=[{"code": 0, "name": "ГОТІВКА", "sum": 180}],
+			total=180,
+		)
+		xb.validate_document(xml)
+		root = ET.fromstring(xml)
+		row = root.find("CHECKBODY/ROW")
+		self.assertEqual(row.findtext("SUBTOTAL"), "200.00")
+		self.assertEqual(row.findtext("DISCOUNTTYPE"), "0")
+		self.assertEqual(row.findtext("DISCOUNTPERCENT"), "10.00")
+		self.assertEqual(row.findtext("DISCOUNTSUM"), "20.00")
+
 
 if __name__ == "__main__":
 	unittest.main()
