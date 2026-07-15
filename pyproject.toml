@@ -18,6 +18,8 @@ include-package-data = true
 [tool.setuptools.package-data]
 erpnext_ua = [
     "translations/*.csv",
+    "public/images/*.svg",
+    "modules.txt",
     "ua_fiscal/schemas/*.xsd",
     "**/*.json",
     "**/*.js",
