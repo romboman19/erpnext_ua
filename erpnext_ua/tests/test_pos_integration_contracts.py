@@ -17,10 +17,9 @@ class TestPOSIntegrationContracts(unittest.TestCase):
         self.assertIn('"module_name": module_name', install_source)
         self.assertIn('"app_name": "erpnext_ua"', install_source)
         self.assertIn("def ensure_pos_workspace():", install_source)
-        self.assertIn(
-            'import_file("UA POS", "Workspace", "UA POS Workspace", force=True)',
-            install_source,
-        )
+        self.assertIn('"workspace_sidebar", "ua_pos_workspace.json"', install_source)
+        self.assertIn('"desktop_icon", "ua_pos_workspace.json"', install_source)
+        self.assertIn("import_file_by_path(path, force=True)", install_source)
 
         modules_hook = "erpnext_ua.install.ensure_app_modules"
         workspace_hook = "erpnext_ua.install.ensure_pos_workspace"

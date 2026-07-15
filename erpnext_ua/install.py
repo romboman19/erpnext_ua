@@ -81,13 +81,21 @@ def ensure_app_modules():
 
 
 def ensure_pos_workspace():
-	"""Import the POS workspace on upgrades as well as clean installs."""
+	"""Import the aligned POS workspace navigation on upgrades."""
 	if not frappe.db.table_exists("Workspace"):
 		return
 	ensure_app_modules()
-	from frappe.modules.import_file import import_file
+	from frappe.modules.import_file import import_file_by_path
 
-	import_file("UA POS", "Workspace", "UA POS Workspace", force=True)
+	paths = (
+		frappe.get_app_path(
+			"erpnext_ua", "ua_pos", "workspace", "ua_pos_workspace", "ua_pos_workspace.json"
+		),
+		frappe.get_app_path("erpnext_ua", "workspace_sidebar", "ua_pos_workspace.json"),
+		frappe.get_app_path("erpnext_ua", "desktop_icon", "ua_pos_workspace.json"),
+	)
+	for path in paths:
+		import_file_by_path(path, force=True)
 	frappe.db.commit()
 
 
