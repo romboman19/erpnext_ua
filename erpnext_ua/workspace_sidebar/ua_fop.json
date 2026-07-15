@@ -1,0 +1,24 @@
+{
+ "app": "erpnext_ua",
+ "creation": "2026-07-15 13:30:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace Sidebar",
+ "header_icon": "accounting",
+ "idx": 0,
+ "items": [
+  {"child": 0, "collapsible": 1, "icon": "home", "indent": 0, "keep_closed": 0, "label": "FOP", "link_to": "UA FOP", "link_type": "Workspace", "show_arrow": 0, "type": "Link"},
+  {"child": 0, "collapsible": 1, "icon": "setting", "indent": 0, "keep_closed": 0, "label": "Fiscalization", "link_to": "UA Fiscal", "link_type": "Workspace", "show_arrow": 0, "type": "Link"},
+  {"child": 0, "collapsible": 1, "icon": "organization", "indent": 1, "keep_closed": 0, "label": "Profiles & Taxes", "link_type": "DocType", "show_arrow": 0, "type": "Section Break"},
+  {"child": 1, "collapsible": 1, "icon": "", "indent": 0, "keep_closed": 0, "label": "FOP Profiles", "link_to": "FOP Profile", "link_type": "DocType", "show_arrow": 0, "type": "Link"},
+  {"child": 1, "collapsible": 1, "icon": "", "indent": 0, "keep_closed": 0, "label": "KVED Directory", "link_to": "UA KVED", "link_type": "DocType", "show_arrow": 0, "type": "Link"},
+  {"child": 1, "collapsible": 1, "icon": "", "indent": 0, "keep_closed": 0, "label": "Tax Parameters", "link_to": "UA Tax Parameters", "link_type": "DocType", "show_arrow": 0, "type": "Link"},
+  {"child": 1, "collapsible": 1, "icon": "", "indent": 0, "keep_closed": 0, "label": "Tax Calendar", "link_to": "UA Tax Deadline", "link_type": "DocType", "show_arrow": 0, "type": "Link"}
+ ],
+ "modified": "2026-07-15 13:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "UA FOP",
+ "name": "UA FOP",
+ "owner": "Administrator",
+ "standard": 1,
+ "title": "UA FOP"
+}

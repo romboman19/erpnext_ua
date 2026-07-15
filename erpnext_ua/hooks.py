@@ -5,6 +5,17 @@ app_description = "Ukrainian localization for ERPNext: FOP profiles, tax paramet
 app_email = "it@hunter.rv.ua"
 app_license = "MIT"
 required_apps = ["erpnext"]
+app_logo_url = "/assets/erpnext_ua/images/app-logo.svg"
+app_home = "/app/ua-fop"
+
+add_to_apps_screen = [
+    {
+        "name": app_name,
+        "logo": app_logo_url,
+        "title": app_title,
+        "route": app_home,
+    }
+]
 
 after_install = "erpnext_ua.install.ensure_tax_parameters"
 
