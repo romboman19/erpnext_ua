@@ -1012,13 +1012,22 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
       return showNotice("Модуль ідентифікації покупця ще не встановлено або не налаштовано.", "error");
     }
     if (!config.enabled || !config.channels?.length) {
-      return showNotice("Увімкніть хоча б один канал у Customer Identification Settings.", "error");
+      return showNotice("Увімкніть ідентифікацію в меню «Налаштування каналів ідентифікації».", "error");
     }
+    const posChannel = config.pos_channel || "SMS";
+    const allowChannelSelection = Boolean(config.allow_pos_channel_selection);
+    const channelLabels = {
+      SMS: "SMS · TurboSMS",
+      Telegram: "Telegram-бот",
+      Call: "Контрольний дзвінок · VitalPBX",
+    };
     const dialog = new frappe.ui.Dialog({
       title: "Ідентифікація покупця",
       fields: [
         { fieldname: "phone", fieldtype: "Data", label: "Номер телефону", reqd: 1, placeholder: "+38 (0XX) XXX-XX-XX" },
-        { fieldname: "channel", fieldtype: "Select", label: "Канал підтвердження", options: config.channels.join("\n"), reqd: 1, default: config.channels[0] },
+        ...(allowChannelSelection
+          ? [{ fieldname: "channel", fieldtype: "Select", label: "Канал підтвердження", options: config.channels.join("\n"), reqd: 1, default: posChannel }]
+          : [{ fieldname: "channel_info", fieldtype: "HTML", options: `<div class="ua-pos-modal-note"><b>Канал:</b> ${esc(channelLabels[posChannel] || posChannel)}<br>Канал задає адміністратор у налаштуваннях ідентифікації.</div>` }]),
         { fieldname: "note", fieldtype: "HTML", options: '<div class="ua-pos-modal-note">Покупець підтверджує, що має доступ до вказаного номера. Код і технічні дані не зберігаються у відкритому вигляді.</div>' },
       ],
       primary_action_label: "Надіслати запит",
@@ -1027,8 +1036,8 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
         try {
           const lookup = await identificationApi("find_by_phone", { phone: values.phone });
           const startVerification = async () => {
-            const request = await identificationApi("begin", {
-              channel: values.channel,
+            const request = await identificationApi("begin_pos", {
+              channel: allowChannelSelection ? values.channel : undefined,
               phone: lookup.phone,
               reference_doctype: "POS Order",
               reference_name: state.order.name,
