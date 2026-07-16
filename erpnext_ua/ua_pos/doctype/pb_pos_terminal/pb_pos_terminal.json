@@ -16,12 +16,12 @@
   {"fieldname": "terminal_serial_number", "fieldtype": "Data", "label": "Серійний номер", "read_only": 1},
   {"fieldname": "acquirer_profiles", "fieldtype": "Small Text", "label": "Профілі/еквайри", "read_only": 1},
   {"fieldname": "fiscal_section", "fieldtype": "Section Break", "label": "Реквізити для фіскального чека"},
-  {"fieldname": "merchant_id", "fieldtype": "Data", "label": "Ідентифікатор торговця в еквайра", "description": "Завантажується з термінала; передається як ACQUIREID"},
-  {"fieldname": "device_id", "fieldtype": "Data", "label": "Ідентифікатор платіжного пристрою", "description": "Завантажується з термінала (ідентифікатор/серійний номер)"},
-  {"fieldname": "payment_system_name", "fieldtype": "Data", "label": "Платіжна система", "description": "Завантажується з термінала, якщо її повертає firmware"},
-  {"fieldname": "payment_system_tax_number", "fieldtype": "Data", "label": "Податковий номер платіжної системи", "description": "Завантажується з термінала, якщо його повертає firmware"},
-  {"fieldname": "acquirer_name", "fieldtype": "Data", "label": "Найменування еквайра", "description": "Завантажується з термінала"},
-  {"fieldname": "acquirer_tax_number", "fieldtype": "Data", "label": "Податковий номер еквайра", "description": "Завантажується з термінала, якщо його повертає firmware"}
+  {"fieldname": "merchant_id", "fieldtype": "Data", "label": "Ідентифікатор торговця в еквайра", "description": "Заповнюється автоматично з поля merchant успішної карткової операції; передається як ACQUIREID"},
+  {"fieldname": "device_id", "fieldtype": "Data", "label": "Ідентифікатор платіжного пристрою", "description": "Серійний номер завантажується з GetTerminalInfo; terminalId успішної операції має пріоритет"},
+  {"fieldname": "payment_system_name", "fieldtype": "Data", "label": "Платіжна система", "description": "Заповнюється автоматично з поля paymentSystem успішної карткової операції"},
+  {"fieldname": "payment_system_tax_number", "fieldtype": "Data", "label": "Податковий номер платіжної системи", "description": "JSON-протокол термінала не повертає це поле; за потреби внесіть вручну"},
+  {"fieldname": "acquirer_name", "fieldtype": "Data", "label": "Найменування еквайра", "description": "Заповнюється автоматично з поля bankAcquirer успішної карткової операції"},
+  {"fieldname": "acquirer_tax_number", "fieldtype": "Data", "label": "Податковий номер еквайра", "description": "JSON-протокол термінала не повертає це поле; за потреби внесіть вручну"}
  ],
  "permissions": [
   {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},

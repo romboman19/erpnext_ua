@@ -1211,37 +1211,32 @@ def _save_terminal_transaction(attempt, terminal: str, operation_id: str, result
 	txn.invoice_number = result.invoice_number
 	txn.auth_code = result.auth_code
 	txn.card_mask = result.card_mask
+	txn.merchant_id = result.merchant_id
+	txn.device_id = result.device_id
+	txn.payment_system_name = result.payment_system_name
+	txn.acquirer_name = result.acquirer_name
 	txn.response_json = frappe.as_json(_masked_terminal_payload(result.raw))
 	txn.save(ignore_permissions=True)
+	terminal_updates = _terminal_fiscal_updates(result)
+	if terminal_updates:
+		frappe.db.set_value("PB POS Terminal", terminal, terminal_updates, update_modified=False)
 	attempt.terminal_transaction = txn.name
 	attempt.status = "Confirmed" if result.status == "confirmed" else ("Declined" if result.status == "declined" else "Unknown")
 	attempt.save(ignore_permissions=True)
 	return txn
 
 
-def _validate_terminal_fiscal_config(terminal: str):
-	values = frappe.db.get_value(
-		"PB POS Terminal",
-		terminal,
-		["merchant_id", "device_id", "payment_system_name", "acquirer_name"],
-		as_dict=True,
-	) or {}
-	missing = [
-		label
-		for fieldname, label in (
-			("merchant_id", "ідентифікатор торговця"),
-			("device_id", "ідентифікатор платіжного пристрою"),
-			("payment_system_name", "платіжна система"),
-			("acquirer_name", "найменування еквайра"),
+def _terminal_fiscal_updates(result) -> dict:
+	return {
+		fieldname: value
+		for fieldname, value in (
+			("merchant_id", result.merchant_id),
+			("device_id", result.device_id),
+			("payment_system_name", result.payment_system_name),
+			("acquirer_name", result.acquirer_name),
 		)
-		if not values.get(fieldname)
-	]
-	if missing:
-		frappe.throw(
-			_("У банківському терміналі {0} заповніть реквізити фіскального чека: {1}").format(
-				terminal, ", ".join(missing)
-			)
-		)
+		if value
+	}
 
 
 def _validate_order_items(order):
@@ -1443,21 +1438,38 @@ def _fiscalize(order, desk, si):
 			if attempt.terminal_transaction:
 				txn = frappe.get_doc("Terminal Transaction", attempt.terminal_transaction)
 				terminal = frappe.get_doc("PB POS Terminal", txn.terminal)
+				paysys = {
+					"tax_num": terminal.payment_system_tax_number,
+					"name": txn.payment_system_name or terminal.payment_system_name,
+					"acquire_id": txn.merchant_id or terminal.merchant_id,
+					"acquire_pn": terminal.acquirer_tax_number,
+					"acquire_name": txn.acquirer_name or terminal.acquirer_name,
+					"transaction_id": txn.operation_id,
+					"transaction_date": frappe.utils.get_datetime(txn.creation).strftime("%d%m%Y%H%M%S"),
+					"transaction_number": txn.invoice_number or txn.rrn,
+					"device_id": txn.device_id or terminal.device_id,
+					"epz_details": txn.card_mask,
+					"auth_code": txn.auth_code,
+					"sum": payment.amount,
+				}
+				missing = [
+					label
+					for fieldname, label in (
+						("name", "платіжна система"),
+						("acquire_id", "Merchant ID"),
+						("acquire_name", "найменування еквайра"),
+						("device_id", "Terminal ID"),
+					)
+					if not paysys.get(fieldname)
+				]
+				if missing:
+					frappe.throw(
+						_("Термінал не повернув реквізити для фіскального чека: {0}").format(
+							", ".join(missing)
+						)
+					)
 				row["paysys"] = [
-					{
-						"tax_num": terminal.payment_system_tax_number,
-						"name": terminal.payment_system_name,
-						"acquire_id": terminal.merchant_id,
-						"acquire_pn": terminal.acquirer_tax_number,
-						"acquire_name": terminal.acquirer_name,
-						"transaction_id": txn.operation_id,
-						"transaction_date": frappe.utils.get_datetime(txn.creation).strftime("%d%m%Y%H%M%S"),
-						"transaction_number": txn.invoice_number or txn.rrn,
-						"device_id": terminal.device_id,
-						"epz_details": txn.card_mask,
-						"auth_code": txn.auth_code,
-						"sum": payment.amount,
-					}
+					paysys
 				]
 		payments.append(row)
 	total = abs(frappe.utils.flt(order.grand_total))
@@ -1883,10 +1895,8 @@ def checkout_start(pos_session_token: str, order: str, payments, idem_key: str) 
 		cash_refund = sum(frappe.utils.flt(row.get("amount")) for row in payment_rows if row.get("kind") == "Cash")
 		if cash_refund > _cash_balance(doc.operational_shift) + 0.001:
 			frappe.throw(_("У касі недостатньо готівки для повернення"))
-	if doc.fiscal_mode == "Fiscal" and any(row.get("kind") == "Card" for row in payment_rows):
-		if not desk.terminal:
-			frappe.throw(_("Для цієї каси не налаштовано банківський термінал"))
-		_validate_terminal_fiscal_config(desk.terminal)
+	if doc.fiscal_mode == "Fiscal" and any(row.get("kind") == "Card" for row in payment_rows) and not desk.terminal:
+		frappe.throw(_("Для цієї каси не налаштовано банківський термінал"))
 	doc.status = "Payment In Progress"
 	doc.payments_plan = []
 	doc.save(ignore_permissions=True)
@@ -1948,6 +1958,9 @@ def checkout_start(pos_session_token: str, order: str, payments, idem_key: str) 
 	if doc.status != "Paid":
 		frappe.db.commit()
 		return doc.as_dict()
+	# Persist the confirmed external payment and its fiscal attributes before
+	# invoice/PRRO completion, so a later fiscal error cannot erase bank evidence.
+	frappe.db.commit()
 	return _complete_paid_order(doc, desk, session)
 
 
@@ -1970,8 +1983,13 @@ def card_status(pos_session_token: str, attempt: str) -> dict:
 		txn.invoice_number = result.invoice_number or txn.invoice_number
 		txn.auth_code = result.auth_code or txn.auth_code
 		txn.card_mask = result.card_mask or txn.card_mask
+		for fieldname, value in _terminal_fiscal_updates(result).items():
+			setattr(txn, fieldname, value)
 		txn.response_json = frappe.as_json(_masked_terminal_payload(result.raw))
 		txn.save(ignore_permissions=True)
+	terminal_updates = _terminal_fiscal_updates(result)
+	if terminal_updates:
+		frappe.db.set_value("PB POS Terminal", terminal, terminal_updates, update_modified=False)
 	doc.status = (
 		"Confirmed"
 		if result.status == "confirmed"
@@ -1990,6 +2008,8 @@ def card_status(pos_session_token: str, attempt: str) -> dict:
 		order.status = "Payment Unknown"
 	order.save(ignore_permissions=True)
 	if order.status == "Paid":
+		# Preserve the recovered bank result before invoice/PRRO completion.
+		frappe.db.commit()
 		order_payload = _complete_paid_order(order, frappe.get_doc("POS Cash Desk", order.cash_desk), session)
 	else:
 		frappe.db.commit()
