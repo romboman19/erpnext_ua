@@ -21,7 +21,13 @@ def get_adapter() -> PrivatPosAdapter:
 	cfg = _settings()
 	if not cfg["gateway_url"] or not cfg["api_key"]:
 		frappe.throw(_("Налаштуйте URL та API-ключ у PB POS Settings"))
-	return PrivatPosAdapter(PrivatPOSGatewayClient(**cfg))
+	return PrivatPosAdapter(
+		PrivatPOSGatewayClient(
+			base_url=cfg["gateway_url"],
+			api_key=cfg["api_key"],
+			timeout=cfg["timeout"],
+		)
+	)
 
 
 def resolve_terminal(terminal: str) -> dict:

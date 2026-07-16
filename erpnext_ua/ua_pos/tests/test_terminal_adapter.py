@@ -1,5 +1,7 @@
 import unittest
+from unittest.mock import patch
 
+from erpnext_ua.ua_pos import terminal_service
 from erpnext_ua.ua_pos.adapters.terminal import PrivatPosAdapter, PrivatPOSGatewayClient
 
 
@@ -32,6 +34,22 @@ class RecordingGateway(PrivatPOSGatewayClient):
 
 
 class TestPrivatPosAdapter(unittest.TestCase):
+	def test_service_maps_gateway_url_to_client_base_url(self):
+		with patch.object(
+			terminal_service,
+			"_settings",
+			return_value={
+				"gateway_url": "http://gateway.invalid/",
+				"api_key": "test-key",
+				"timeout": 17,
+			},
+		):
+			adapter = terminal_service.get_adapter()
+
+		self.assertEqual(adapter.client.base_url, "http://gateway.invalid")
+		self.assertEqual(adapter.client.api_key, "test-key")
+		self.assertEqual(adapter.client.timeout, 17)
+
 	def test_sale_maps_approved_response(self):
 		client = FakeClient({"responseCode": "0000", "rrn": "42", "invoiceNumber": "7"})
 		result = PrivatPosAdapter(client).sale({"ip": "127.0.0.1", "port": 2000}, 10, "op-1")
