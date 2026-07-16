@@ -9,12 +9,12 @@
   {"fieldname": "tcp_port", "fieldtype": "Int", "label": "TCP Port", "default": "2000"},
   {"fieldname": "cash_desk", "fieldtype": "Link", "label": "POS Cash Desk", "options": "POS Cash Desk"},
   {"fieldname": "fiscal_section", "fieldtype": "Section Break", "label": "Реквізити для фіскального чека"},
-  {"fieldname": "merchant_id", "fieldtype": "Data", "label": "Ідентифікатор торговця в еквайра", "description": "Merchant ID із договору еквайрингу; передається як ACQUIREID"},
-  {"fieldname": "device_id", "fieldtype": "Data", "label": "Ідентифікатор платіжного пристрою", "description": "Ідентифікатор/серійний номер термінала у квитанції еквайра"},
-  {"fieldname": "payment_system_name", "fieldtype": "Data", "label": "Платіжна система", "description": "Наприклад VISA / Mastercard; якщо термінал повертає конкретну систему, вона має пріоритет"},
-  {"fieldname": "payment_system_tax_number", "fieldtype": "Data", "label": "Податковий номер платіжної системи"},
-  {"fieldname": "acquirer_name", "fieldtype": "Data", "label": "Найменування еквайра"},
-  {"fieldname": "acquirer_tax_number", "fieldtype": "Data", "label": "Податковий номер еквайра"}
+  {"fieldname": "merchant_id", "fieldtype": "Data", "label": "Ідентифікатор торговця в еквайра", "description": "Завантажується з термінала; передається як ACQUIREID"},
+  {"fieldname": "device_id", "fieldtype": "Data", "label": "Ідентифікатор платіжного пристрою", "description": "Завантажується з термінала (ідентифікатор/серійний номер)"},
+  {"fieldname": "payment_system_name", "fieldtype": "Data", "label": "Платіжна система", "description": "Завантажується з термінала, якщо її повертає firmware"},
+  {"fieldname": "payment_system_tax_number", "fieldtype": "Data", "label": "Податковий номер платіжної системи", "description": "Завантажується з термінала, якщо його повертає firmware"},
+  {"fieldname": "acquirer_name", "fieldtype": "Data", "label": "Найменування еквайра", "description": "Завантажується з термінала"},
+  {"fieldname": "acquirer_tax_number", "fieldtype": "Data", "label": "Податковий номер еквайра", "description": "Завантажується з термінала, якщо його повертає firmware"}
  ],
  "permissions": [
   {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},

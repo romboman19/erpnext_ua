@@ -34,6 +34,36 @@ class RecordingGateway(PrivatPOSGatewayClient):
 
 
 class TestPrivatPosAdapter(unittest.TestCase):
+	def test_terminal_info_uses_read_only_gateway_endpoint(self):
+		gateway = RecordingGateway([{"params": {"MerchantId": "M-1"}}])
+		result = gateway.terminal_info("127.0.0.1", 2001)
+		self.assertEqual(result["params"]["MerchantId"], "M-1")
+		self.assertEqual(gateway.paths, ["/terminalinfo"])
+
+	def test_terminal_info_maps_firmware_aliases_to_fiscal_fields(self):
+		values = terminal_service._terminal_info_values(
+			{
+				"params": {
+					"MerchantId": "M-1",
+					"TerminalID": "T-1",
+					"paymentSystem": {"NAME": "VISA", "TAXNUM": "100"},
+					"ACQUIRENM": "АТ КБ Банк",
+					"ACQUIREPN": "200",
+				}
+			}
+		)
+		self.assertEqual(
+			values,
+			{
+				"merchant_id": "M-1",
+				"device_id": "T-1",
+				"payment_system_name": "VISA",
+				"payment_system_tax_number": "100",
+				"acquirer_name": "АТ КБ Банк",
+				"acquirer_tax_number": "200",
+			},
+		)
+
 	def test_service_maps_gateway_url_to_client_base_url(self):
 		with patch.object(
 			terminal_service,

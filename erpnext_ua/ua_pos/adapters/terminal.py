@@ -25,6 +25,9 @@ class TerminalResult:
 
 class TerminalAdapter(ABC):
 	@abstractmethod
+	def terminal_info(self, terminal: dict[str, Any]) -> dict[str, Any]: ...
+
+	@abstractmethod
 	def ping(self, terminal: dict[str, Any]) -> bool: ...
 
 	@abstractmethod
@@ -111,6 +114,11 @@ class PrivatPOSGatewayClient:
 			"POST", "/verify", json={"terminal": terminal_ip, "params": {"port": int(port)}}
 		)
 
+	def terminal_info(self, terminal_ip: str, port: int = 2000) -> dict:
+		return self._request(
+			"POST", "/terminalinfo", json={"terminal": terminal_ip, "params": {"port": int(port)}}
+		)
+
 	def status(self, terminal_ip: str, operation_id: str, port: int = 2000) -> dict:
 		return self._request(
 			"POST",
@@ -152,6 +160,9 @@ class PrivatPosAdapter(TerminalAdapter):
 		raw = self.client.ping(terminal["ip"], terminal.get("port", 2000))
 		description = str(raw.get("description") or "").lower()
 		return not raw.get("error") or "log file is empty" in description
+
+	def terminal_info(self, terminal: dict[str, Any]) -> dict[str, Any]:
+		return self.client.terminal_info(terminal["ip"], terminal.get("port", 2000))
 
 	def sale(self, terminal: dict[str, Any], amount: float, operation_id: str) -> TerminalResult:
 		raw = self.client.operation(
