@@ -34,6 +34,25 @@ class RecordingGateway(PrivatPOSGatewayClient):
 
 
 class TestPrivatPosAdapter(unittest.TestCase):
+	def test_identify_uses_official_service_message(self):
+		gateway = RecordingGateway([{"params": {"vendor": "Ingenico", "model": "DESK3200"}}])
+		result = gateway.identify("127.0.0.1", 2001)
+		self.assertEqual(result["params"]["model"], "DESK3200")
+		self.assertEqual(gateway.paths, ["/identify"])
+
+	def test_terminal_version_maps_profile_and_serial_without_inventing_merchant(self):
+		values = terminal_service._technical_terminal_values(
+			{"params": {"version": "TA7E161.102 S1RO0L2E00DK19263785"}},
+			{"params": {"vendor": "Ingenico", "model": "DESK3200"}},
+		)
+		self.assertEqual(values["software_version"], "TA7E161.102")
+		self.assertEqual(values["terminal_profile_id"], "S1RO0L2E00")
+		self.assertEqual(values["terminal_serial_number"], "DK19263785")
+		self.assertEqual(values["device_id"], "DK19263785")
+		self.assertEqual(values["terminal_vendor"], "Ingenico")
+		self.assertEqual(values["terminal_model"], "DESK3200")
+		self.assertNotIn("merchant_id", values)
+
 	def test_terminal_info_uses_read_only_gateway_endpoint(self):
 		gateway = RecordingGateway([{"params": {"MerchantId": "M-1"}}])
 		result = gateway.terminal_info("127.0.0.1", 2001)

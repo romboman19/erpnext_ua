@@ -25,6 +25,9 @@ class TerminalResult:
 
 class TerminalAdapter(ABC):
 	@abstractmethod
+	def identify(self, terminal: dict[str, Any]) -> dict[str, Any]: ...
+
+	@abstractmethod
 	def terminal_info(self, terminal: dict[str, Any]) -> dict[str, Any]: ...
 
 	@abstractmethod
@@ -119,6 +122,13 @@ class PrivatPOSGatewayClient:
 			"POST", "/terminalinfo", json={"terminal": terminal_ip, "params": {"port": int(port)}}
 		)
 
+	def identify(self, terminal_ip: str, port: int = 2000) -> dict:
+		return self._request(
+			"POST",
+			"/identify",
+			json={"terminal": terminal_ip, "params": {"msgType": "identify", "port": int(port)}},
+		)
+
 	def status(self, terminal_ip: str, operation_id: str, port: int = 2000) -> dict:
 		return self._request(
 			"POST",
@@ -163,6 +173,9 @@ class PrivatPosAdapter(TerminalAdapter):
 
 	def terminal_info(self, terminal: dict[str, Any]) -> dict[str, Any]:
 		return self.client.terminal_info(terminal["ip"], terminal.get("port", 2000))
+
+	def identify(self, terminal: dict[str, Any]) -> dict[str, Any]:
+		return self.client.identify(terminal["ip"], terminal.get("port", 2000))
 
 	def sale(self, terminal: dict[str, Any], amount: float, operation_id: str) -> TerminalResult:
 		raw = self.client.operation(

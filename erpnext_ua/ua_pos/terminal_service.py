@@ -34,6 +34,15 @@ _TERMINAL_INFO_ALIASES = {
 
 _PAYMENT_SYSTEM_CONTEXTS = {"paysys", "paymentsystem", "paymentsysteminfo", "paymentsystemdata"}
 
+_TECHNICAL_FIELDS = {
+	"terminal_vendor": "Vendor",
+	"terminal_model": "Model",
+	"software_version": "Версія ПЗ",
+	"terminal_profile_id": "Profile ID",
+	"terminal_serial_number": "Серійний номер",
+	"acquirer_profiles": "Профілі/еквайри",
+}
+
 
 def _normalized_info_key(value: object) -> str:
 	return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
@@ -74,6 +83,38 @@ def _terminal_info_values(response: dict) -> dict[str, str]:
 	return values
 
 
+def _technical_terminal_values(info: dict, identity: dict | None = None) -> dict[str, str]:
+	values: dict[str, str] = {}
+	identity_params = (identity or {}).get("params") or {}
+	if isinstance(identity_params, dict):
+		vendor = str(identity_params.get("vendor") or "").strip()
+		model = str(identity_params.get("model") or "").strip()
+		if vendor:
+			values["terminal_vendor"] = vendor[:140]
+		if model:
+			values["terminal_model"] = model[:140]
+
+	params = info.get("params") or {}
+	version = str(params.get("version") or "").strip() if isinstance(params, dict) else ""
+	if not version:
+		return values
+
+	parts = version.split()
+	values["software_version"] = parts[0][:140]
+	profile_serial = parts[1] if len(parts) > 1 else ""
+	profile_serial, *acquirers = profile_serial.split("/") if profile_serial else [""]
+	# Official BPOS format: 10-char terminal profile ID + 10-char POS serial number.
+	if len(profile_serial) >= 20:
+		values["terminal_profile_id"] = profile_serial[:10]
+		values["terminal_serial_number"] = profile_serial[10:20]
+		values.setdefault("device_id", profile_serial[10:20])
+	elif profile_serial:
+		values["terminal_profile_id"] = profile_serial[:140]
+	if acquirers:
+		values["acquirer_profiles"] = "\n".join(item[:140] for item in acquirers if item)[:2000]
+	return values
+
+
 def _settings() -> dict:
 	settings = frappe.get_single("PB POS Settings")
 	return {
@@ -111,14 +152,24 @@ def resolve_terminal(terminal: str, *, require_active: bool = True) -> dict:
 def load_terminal_data(terminal: str) -> dict:
 	frappe.only_for(("System Manager", "POS Administrator"))
 	doc = frappe.get_doc("PB POS Terminal", terminal)
-	response = get_adapter().terminal_info(resolve_terminal(terminal, require_active=False))
+	resolved = resolve_terminal(terminal, require_active=False)
+	adapter = get_adapter()
+	response = adapter.terminal_info(resolved)
 	if response.get("error") or int(response.get("_http_status") or 200) >= 400:
 		description = response.get("description") or response.get("errorDescription") or _(
 			"Невідома помилка gateway"
 		)
 		frappe.throw(_("Не вдалося завантажити дані термінала: {0}").format(description))
 
-	loaded = _terminal_info_values(response)
+	identity = adapter.identify(resolved)
+	identity_warning = ""
+	if identity.get("error") or int(identity.get("_http_status") or 200) >= 400:
+		identity_warning = str(
+			identity.get("description") or identity.get("errorDescription") or "Identify failed"
+		)[:300]
+		identity = {}
+
+	loaded = {**_terminal_info_values(response), **_technical_terminal_values(response, identity)}
 	for fieldname, value in loaded.items():
 		doc.set(fieldname, value)
 	if loaded:
@@ -129,8 +180,14 @@ def load_terminal_data(terminal: str) -> dict:
 		"ok": True,
 		"updated": list(loaded),
 		"missing": missing,
-		"updated_labels": [_TERMINAL_FISCAL_FIELDS[fieldname] for fieldname in loaded],
+		"updated_labels": [
+			(_TERMINAL_FISCAL_FIELDS | _TECHNICAL_FIELDS).get(fieldname, fieldname) for fieldname in loaded
+		],
 		"missing_labels": [_TERMINAL_FISCAL_FIELDS[fieldname] for fieldname in missing],
+		"technical": {
+			fieldname: doc.get(fieldname) for fieldname in _TECHNICAL_FIELDS if doc.get(fieldname)
+		},
+		"identity_warning": identity_warning,
 	}
 
 

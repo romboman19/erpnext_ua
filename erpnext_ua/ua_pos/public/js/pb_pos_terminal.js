@@ -16,11 +16,21 @@ frappe.ui.form.on("PB POS Terminal", {
       const result = response.message || {};
       const loaded = (result.updated_labels || []).join(", ") || "термінал не повернув фіскальних реквізитів";
       const missing = (result.missing_labels || []).join(", ");
+      const technical = result.technical || {};
+      const details = [
+        technical.terminal_vendor && `Vendor: ${technical.terminal_vendor}`,
+        technical.terminal_model && `Model: ${technical.terminal_model}`,
+        technical.software_version && `Версія ПЗ: ${technical.software_version}`,
+        technical.terminal_profile_id && `Profile ID: ${technical.terminal_profile_id}`,
+        technical.terminal_serial_number && `Серійний номер: ${technical.terminal_serial_number}`,
+      ].filter(Boolean).map(frappe.utils.escape_html).join("<br>");
       frappe.msgprint({
         title: "Дані термінала",
         indicator: result.updated?.length ? "green" : "orange",
-        message: `Завантажено: ${frappe.utils.escape_html(loaded)}${
-          missing ? `<br><br>Не отримано: ${frappe.utils.escape_html(missing)}` : ""
+        message: `${details || `Завантажено: ${frappe.utils.escape_html(loaded)}`}${
+          missing ? `<br><br>Фіскальні дані, яких немає у GetTerminalInfo: ${frappe.utils.escape_html(missing)}` : ""
+        }${
+          result.identity_warning ? `<br><br>Identify: ${frappe.utils.escape_html(result.identity_warning)}` : ""
         }`,
       });
     }, "Термінал");
