@@ -12,6 +12,11 @@
   "column_break_ident",
   "status",
   "single_tax_registration_date",
+  "section_dps_cabinet",
+  "cabinet_kep_key",
+  "column_break_dps_cabinet",
+  "dps_last_sync_at",
+  "dps_last_sync_by",
   "section_tax",
   "single_tax_group",
   "tax_rate_mode",
@@ -80,6 +85,35 @@
    "fieldname": "single_tax_registration_date",
    "fieldtype": "Date",
    "label": "Дата реєстрації платником ЄП"
+  },
+  {
+   "fieldname": "section_dps_cabinet",
+   "fieldtype": "Section Break",
+   "label": "Електронний кабінет ДПС"
+  },
+  {
+   "description": "Створіть або виберіть UA KEP Key із приватним файлом ключа та паролем. Секрети не дублюються у профілі ФОП.",
+   "fieldname": "cabinet_kep_key",
+   "fieldtype": "Link",
+   "label": "КЕП для кабінету ДПС",
+   "options": "UA KEP Key"
+  },
+  {
+   "fieldname": "column_break_dps_cabinet",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "dps_last_sync_at",
+   "fieldtype": "Datetime",
+   "label": "Остання синхронізація з ДПС",
+   "read_only": 1
+  },
+  {
+   "fieldname": "dps_last_sync_by",
+   "fieldtype": "Link",
+   "label": "Синхронізував",
+   "options": "User",
+   "read_only": 1
   },
   {
    "fieldname": "section_tax",
