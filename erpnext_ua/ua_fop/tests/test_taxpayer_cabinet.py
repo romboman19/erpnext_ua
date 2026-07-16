@@ -30,8 +30,8 @@ class TestTaxpayerCabinetParsing(IntegrationTestCase):
 			},
 			{
 				"idGroup": 6,
-				"headers": {"GRUPA": "Група", "DATE_REG": "Дата реєстрації"},
-				"values": {"GRUPA": "3 група", "DATE_REG": "01.01.2024"},
+				"headers": {"GRUP": "Група", "DATA_N": "Дата переходу на спрощену систему оподаткування"},
+				"values": {"GRUP": "3 група", "DATA_N": "01.01.2024"},
 			},
 			{
 				"idGroup": 14,
@@ -46,10 +46,10 @@ class TestTaxpayerCabinetParsing(IntegrationTestCase):
 			},
 			{
 				"idGroup": 16,
-				"headers": {"KVED_CODE": "Код КВЕД", "KVED_NAME": "Назва КВЕД", "IS_MAIN": "Основний"},
+				"headers": {"KVED": "Код ВЕД", "KVED_NAME": "Найменування ВЕД", "IS_MAIN": "Основна"},
 				"listValues": [
-					{"KVED_CODE": "47.91", "KVED_NAME": "Роздрібна торгівля", "IS_MAIN": 1},
-					{"KVED_CODE": "62.01", "KVED_NAME": "Комп'ютерне програмування", "IS_MAIN": 0},
+					{"KVED": "_47.91", "KVED_NAME": "Роздрібна торгівля", "IS_MAIN": 1},
+					{"KVED": "_62.01", "KVED_NAME": "Комп'ютерне програмування", "IS_MAIN": 0},
 				],
 			},
 		]

@@ -1,6 +1,7 @@
 frappe.ui.form.on("FOP Profile", {
 	refresh(frm) {
 		frm.set_query("cabinet_kep_key", () => ({ filters: { status: "Active" } }));
+		set_dps_managed_fields(frm);
 		frm.add_custom_button(
 			__("Завантажити дані з ДПС"),
 			() => load_taxpayer_card(frm),
@@ -45,6 +46,10 @@ frappe.ui.form.on("FOP Profile", {
 
 		render_headline(frm);
 	},
+
+	allow_manual_dps_fields(frm) {
+		set_dps_managed_fields(frm);
+	},
 });
 
 const DPS_FIELD_LABELS = {
@@ -62,6 +67,13 @@ const DPS_FIELD_LABELS = {
 	kved_main: "Основний КВЕД",
 	registration_address: "Податкова адреса",
 };
+
+function set_dps_managed_fields(frm) {
+	const read_only = !frm.doc.allow_manual_dps_fields;
+	["fop_full_name", "prro_registered_name"].forEach((fieldname) => {
+		frm.set_df_property(fieldname, "read_only", read_only ? 1 : 0);
+	});
+}
 
 function escaped(value) {
 	return frappe.utils.escape_html(String(value ?? ""));

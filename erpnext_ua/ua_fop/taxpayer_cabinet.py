@@ -156,8 +156,8 @@ def _parse_single_tax(block: dict | None) -> tuple[str | None, str | None]:
 		registered = _find_value(
 			row,
 			headers,
-			keys=("DATE_REG", "D_REG", "DAT_REESTR", "REG_DATE"),
-			labels=("ДАТА РЕЄСТРАЦ", "ДАТА ВНЕСЕННЯ"),
+			keys=("DATA_N", "DATE_REG", "D_REG", "DAT_REESTR", "REG_DATE"),
+			labels=("ДАТА ПЕРЕХОДУ", "ДАТА РЕЄСТРАЦ", "ДАТА ВНЕСЕННЯ"),
 		)
 		return match.group(1), _parse_date(registered)
 	return None, None
@@ -218,7 +218,10 @@ def _parse_kveds(block: dict | None) -> list[dict]:
 			keys=("KVED", "KVED_CODE", "CODE_KVED", "C_KVED", "CODE"),
 			labels=("КОД КВЕД", "КВЕД"),
 		)
-		match = re.search(r"\b\d{2}(?:\.\d{1,2}){1,2}\b", str(code_value or ""))
+		# The private Tax Cabinet API currently prefixes codes with an
+		# underscore (for example ``_47.78``). Underscore is a regex word
+		# character, so a leading ``\b`` incorrectly rejected every code.
+		match = re.search(r"(?<!\d)\d{2}(?:\.\d{1,2}){1,2}(?!\d)", str(code_value or ""))
 		if not match:
 			continue
 		code = match.group(0)
