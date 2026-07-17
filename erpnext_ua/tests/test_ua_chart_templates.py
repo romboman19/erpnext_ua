@@ -1,4 +1,6 @@
+import json
 import unittest
+from pathlib import Path
 
 from erpnext_ua.ua_accounting.chart_of_accounts.templates import (
 	REQUIRED_ACCOUNT_TYPES,
@@ -34,6 +36,18 @@ def flatten_tree(tree):
 
 
 class TestUAChartTemplates(unittest.TestCase):
+	def test_public_workspace_has_matching_sidebar(self):
+		app_path = Path(__file__).resolve().parents[1]
+		workspace = json.loads(
+			(app_path / "ua_accounting/workspace/ua_accounting/ua_accounting.json").read_text(encoding="utf-8")
+		)
+		sidebar = json.loads((app_path / "workspace_sidebar/ua_accounting.json").read_text(encoding="utf-8"))
+
+		self.assertTrue(workspace["public"])
+		self.assertEqual(sidebar["name"], workspace["name"])
+		self.assertEqual(sidebar["title"], workspace["title"])
+		self.assertEqual(sidebar["module"], workspace["module"])
+
 	def test_full_plan_is_complete_and_current(self):
 		template = load_template("full_291")
 		summary = template_summary(template)
