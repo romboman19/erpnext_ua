@@ -17,6 +17,7 @@ include-package-data = true
 
 [tool.setuptools.package-data]
 erpnext_ua = [
+    "locale/*.po",
     "translations/*.csv",
     "public/images/*.svg",
     "modules.txt",
