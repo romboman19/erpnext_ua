@@ -63,6 +63,7 @@ class TestUAOffBalanceEntry(IntegrationTestCase):
 		)
 		with self.assertRaises(frappe.ValidationError):
 			first.cancel()
+		first.reload()
 
 		decrease.cancel()
 		first.cancel()
