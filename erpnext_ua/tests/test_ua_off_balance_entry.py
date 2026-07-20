@@ -15,6 +15,8 @@ class TestUAOffBalanceEntry(IntegrationTestCase):
 		ensure_accounting_setup()
 		if not frappe.db.exists("Warehouse Type", "Transit"):
 			frappe.get_doc({"doctype": "Warehouse Type", "name": "Transit"}).insert(ignore_permissions=True)
+		if not frappe.db.exists("UOM", "Nos"):
+			frappe.get_doc({"doctype": "UOM", "uom_name": "Nos"}).insert(ignore_permissions=True)
 		suffix = uuid4().hex[:5].upper()
 		self.company = frappe.get_doc(
 			{
