@@ -5,6 +5,13 @@ import unittest
 from pathlib import Path
 
 import erpnext_ua.hooks as hooks
+from erpnext_ua.print_designer_documents import RECEIPT_FORMAT_NAME, build_document_formats
+from erpnext_ua.print_designer_price_tags import (
+	PACKAGING_FORMAT_NAME,
+	PROMOTIONAL_FORMAT_NAME,
+	STANDARD_FORMAT_NAME,
+	build_price_tag_formats,
+)
 
 
 APP = Path(__file__).resolve().parents[1]
@@ -18,6 +25,12 @@ class TestPriceTagContracts(unittest.TestCase):
 		self.assertIn("public/js/price_tag_source.js", hooks.doctype_js["Purchase Receipt"])
 		self.assertIn("erpnext_ua.install.ensure_price_tag_setup", hooks.after_install)
 		self.assertIn("erpnext_ua.install.ensure_price_tag_setup", hooks.after_migrate)
+		self.assertIn(
+			"erpnext_ua.print_designer_setup.ensure_print_designer_formats", hooks.after_install
+		)
+		self.assertIn(
+			"erpnext_ua.print_designer_setup.ensure_print_designer_formats", hooks.after_migrate
+		)
 
 	def test_print_job_contains_immutable_snapshot_fields(self):
 		path = APP / "ua_price_tags" / "doctype" / "price_tag_print_job" / "price_tag_print_job.json"
@@ -70,8 +83,41 @@ class TestPriceTagContracts(unittest.TestCase):
 		settings_fields = {field["fieldname"]: field for field in settings["fields"]}
 		self.assertEqual(
 			settings_fields["packaging_print_format"]["default"],
-			"Етикетка на упаковку 40x25",
+			PACKAGING_FORMAT_NAME,
 		)
+
+	def test_native_print_designer_formats_are_editable_and_renderable(self):
+		base_settings = {"globalStyles": {}, "schema_version": "1.3.0"}
+		price_formats = build_price_tag_formats(base_settings)
+		self.assertEqual(
+			{row["name"] for row in price_formats},
+			{STANDARD_FORMAT_NAME, PROMOTIONAL_FORMAT_NAME, PACKAGING_FORMAT_NAME},
+		)
+		for format_doc in price_formats:
+			self._assert_native_designer_format(format_doc, "Price Tag Print Job")
+			settings = json.loads(format_doc["print_designer_settings"])
+			self.assertAlmostEqual(settings["page"]["width"], 40 * 96 / 25.4)
+			self.assertAlmostEqual(settings["page"]["height"], 25 * 96 / 25.4)
+			self.assertIn("row.copies", settings["userProvidedJinja"])
+			self.assertIn('doc.set("items", expanded_items)', settings["userProvidedJinja"])
+			body = json.loads(format_doc["print_designer_body"])
+			self.assertEqual(body[0]["childrens"][0]["type"], "table")
+
+		document_formats = build_document_formats(base_settings)
+		self.assertEqual(len(document_formats), 4)
+		self.assertIn(RECEIPT_FORMAT_NAME, {row["name"] for row in document_formats})
+		for format_doc in document_formats:
+			self._assert_native_designer_format(format_doc, format_doc["doc_type"])
+			body = json.loads(format_doc["print_designer_body"])
+			self.assertIn("table", {element["type"] for element in body[0]["childrens"]})
+
+	def _assert_native_designer_format(self, format_doc, expected_doctype):
+		self.assertEqual(format_doc["doc_type"], expected_doctype)
+		self.assertEqual(format_doc["print_designer"], 1)
+		self.assertEqual(format_doc["standard"], "No")
+		self.assertTrue(json.loads(format_doc["print_designer_body"]))
+		layout = json.loads(format_doc["print_designer_print_format"])
+		self.assertTrue(layout["body"][0]["childrens"])
 
 	def test_created_jobs_open_the_print_view_directly(self):
 		javascript = (APP / "public" / "js" / "price_tag_source.js").read_text(encoding="utf-8")

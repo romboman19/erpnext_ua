@@ -34,6 +34,7 @@ after_install = [
 	"erpnext_ua.install.ensure_pos_page",
 	"erpnext_ua.install.ensure_price_tag_doctypes",
 	"erpnext_ua.install.ensure_price_tag_setup",
+	"erpnext_ua.print_designer_setup.ensure_print_designer_formats",
 ]
 
 after_migrate = [
@@ -48,6 +49,7 @@ after_migrate = [
 	"erpnext_ua.install.ensure_pos_page",
 	"erpnext_ua.install.ensure_price_tag_doctypes",
 	"erpnext_ua.install.ensure_price_tag_setup",
+	"erpnext_ua.print_designer_setup.ensure_print_designer_formats",
 ]
 
 doctype_js = {

@@ -65,9 +65,12 @@ def _configuration(
 			"currency": currency,
 			"label_size": label_size or settings.default_label_size or "40×25 mm",
 			"default_copies": max(1, int(settings.default_copies or 1)),
-			"standard_print_format": settings.standard_print_format or "Цінник звичайний 40x25",
-			"promotional_print_format": settings.promotional_print_format or "Цінник акційний 40x25",
-			"packaging_print_format": settings.packaging_print_format or "Етикетка на упаковку 40x25",
+			"standard_print_format": settings.standard_print_format
+			or "Цінник звичайний 40x25 (Print Designer)",
+			"promotional_print_format": settings.promotional_print_format
+			or "Цінник акційний 40x25 (Print Designer)",
+			"packaging_print_format": settings.packaging_print_format
+			or "Етикетка на упаковку 40x25 (Print Designer)",
 		}
 	)
 
