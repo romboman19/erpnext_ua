@@ -59,6 +59,45 @@ APP_MODULES = ("UA FOP", "UA Fiscal", "UA POS", "UA Accounting", "UA Price Tags"
 PRICE_TAG_ROLES = ("Price Tag User", "Price Tag Manager")
 
 
+def ensure_price_tag_doctypes():
+	"""Repair price-tag metadata on upgrades where the app files predated schema sync."""
+	if not frappe.db.table_exists("DocType"):
+		return
+	ensure_app_modules()
+	# A long-lived worker can still hold the pre-upgrade modules.txt mapping.
+	# Refresh it before importing DocTypes from a module added in this release.
+	frappe.clear_cache()
+	frappe.setup_module_map()
+	from frappe.modules.import_file import import_file_by_path
+
+	doctypes = (
+		("Price Tag Print Job Item", "price_tag_print_job_item"),
+		("Price Tag Settings", "price_tag_settings"),
+		("Price Tag Print Job", "price_tag_print_job"),
+	)
+	for name, folder in doctypes:
+		if frappe.db.exists("DocType", name):
+			continue
+		path = frappe.get_app_path(
+			"erpnext_ua", "ua_price_tags", "doctype", folder, f"{folder}.json"
+		)
+		import_file_by_path(path, force=True)
+	formats = (
+		("Цінник звичайний 40x25", "price_tag_standard_40x25"),
+		("Цінник акційний 40x25", "price_tag_promotional_40x25"),
+		("Етикетка на упаковку 40x25", "packaging_label_40x25"),
+	)
+	for name, folder in formats:
+		if frappe.db.exists("Print Format", name):
+			continue
+		path = frappe.get_app_path(
+			"erpnext_ua", "ua_price_tags", "print_format", folder, f"{folder}.json"
+		)
+		import_file_by_path(path, force=True)
+	frappe.clear_cache()
+	frappe.db.commit()
+
+
 def ensure_price_tag_setup():
 	"""Create non-destructive price-tag roles, defaults, and navigation."""
 	for role in PRICE_TAG_ROLES:
@@ -101,6 +140,157 @@ def ensure_price_tag_setup():
 		)
 		for path in paths:
 			import_file_by_path(path, force=True)
+	frappe.db.commit()
+
+
+def ensure_receiving_setup():
+	"""Add non-destructive UA receiving evidence and completion fields."""
+	create_custom_fields(
+		{
+			"Buying Settings": [
+				{
+					"fieldname": "ua_receiving_settings_section",
+					"label": "Українське приймання товару",
+					"fieldtype": "Section Break",
+					"insert_after": "set_landed_cost_based_on_purchase_invoice_rate",
+				},
+				{
+					"fieldname": "ua_require_supplier_document_attachment",
+					"label": "Вимагати файл документа постачальника",
+					"fieldtype": "Check",
+					"default": "1",
+					"insert_after": "ua_receiving_settings_section",
+				},
+				{
+					"fieldname": "ua_create_purchase_invoice_draft",
+					"label": "Створювати чернетку рахунку закупівлі",
+					"fieldtype": "Check",
+					"default": "1",
+					"insert_after": "ua_require_supplier_document_attachment",
+				},
+				{
+					"fieldname": "ua_receiving_pricing_column",
+					"fieldtype": "Column Break",
+					"insert_after": "ua_create_purchase_invoice_draft",
+				},
+				{
+					"fieldname": "ua_default_retail_markup_percent",
+					"label": "Типова роздрібна націнка, %",
+					"fieldtype": "Percent",
+					"default": "0",
+					"insert_after": "ua_receiving_pricing_column",
+				},
+				{
+					"fieldname": "ua_retail_price_rounding_step",
+					"label": "Крок округлення роздрібної ціни",
+					"fieldtype": "Currency",
+					"default": "1",
+					"insert_after": "ua_default_retail_markup_percent",
+				},
+			],
+			"Purchase Receipt": [
+				{
+					"fieldname": "ua_receiving_section",
+					"label": "Документ постачальника та приймання",
+					"fieldtype": "Section Break",
+					"insert_after": "supplier_delivery_note",
+				},
+				{
+					"fieldname": "ua_supplier_document_type",
+					"label": "Тип документа постачальника",
+					"fieldtype": "Select",
+					"options": "\nВидаткова накладна постачальника\nАкт приймання-передачі\nТоварно-транспортна накладна\nІнший первинний документ",
+					"insert_after": "ua_receiving_section",
+				},
+				{
+					"fieldname": "ua_supplier_document_date",
+					"label": "Дата документа постачальника",
+					"fieldtype": "Date",
+					"insert_after": "ua_supplier_document_type",
+				},
+				{
+					"fieldname": "ua_supplier_document_file",
+					"label": "Файл документа постачальника",
+					"fieldtype": "Attach",
+					"insert_after": "ua_supplier_document_date",
+				},
+				{
+					"fieldname": "ua_receiving_column",
+					"fieldtype": "Column Break",
+					"insert_after": "ua_supplier_document_file",
+				},
+				{
+					"fieldname": "ua_received_by",
+					"label": "Прийняв товар",
+					"fieldtype": "Link",
+					"options": "User",
+					"default": "__user",
+					"insert_after": "ua_receiving_column",
+				},
+				{
+					"fieldname": "ua_receipt_verified",
+					"label": "Фактичну кількість звірено",
+					"fieldtype": "Check",
+					"default": "0",
+					"insert_after": "ua_received_by",
+				},
+				{
+					"fieldname": "ua_receiving_result_section",
+					"label": "Завершення приймання",
+					"fieldtype": "Section Break",
+					"collapsible": 1,
+					"insert_after": "ua_receipt_verified",
+				},
+				{
+					"fieldname": "ua_receiving_completed",
+					"label": "Приймання завершено",
+					"fieldtype": "Check",
+					"read_only": 1,
+					"insert_after": "ua_receiving_result_section",
+				},
+				{
+					"fieldname": "ua_receiving_completed_on",
+					"label": "Завершено",
+					"fieldtype": "Datetime",
+					"read_only": 1,
+					"insert_after": "ua_receiving_completed",
+				},
+				{
+					"fieldname": "ua_purchase_invoice",
+					"label": "Чернетка рахунку закупівлі",
+					"fieldtype": "Link",
+					"options": "Purchase Invoice",
+					"read_only": 1,
+					"insert_after": "ua_receiving_completed_on",
+				},
+				{
+					"fieldname": "ua_price_tag_jobs",
+					"label": "Пакети цінників",
+					"fieldtype": "Small Text",
+					"read_only": 1,
+					"insert_after": "ua_purchase_invoice",
+				},
+			],
+			"Purchase Invoice": [
+				{
+					"fieldname": "ua_receiving_reference_section",
+					"label": "Українське приймання",
+					"fieldtype": "Section Break",
+					"collapsible": 1,
+					"insert_after": "bill_date",
+				},
+				{
+					"fieldname": "ua_source_purchase_receipt",
+					"label": "Прихідна накладна",
+					"fieldtype": "Link",
+					"options": "Purchase Receipt",
+					"read_only": 1,
+					"insert_after": "ua_receiving_reference_section",
+				},
+			],
+		},
+		update=True,
+	)
 	frappe.db.commit()
 
 

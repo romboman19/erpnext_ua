@@ -10,6 +10,7 @@ from frappe.utils import flt, formatdate, getdate, now_datetime
 
 from erpnext_ua.ua_pos.barcode import code128_svg_data_uri
 from erpnext_ua.ua_price_tags.domain import PROMOTIONAL, choose_price, copies_for, job_group_key
+from erpnext_ua.ua_receiving.domain import resolve_receipt_warehouse
 
 
 SUPPORTED_SOURCES = {"Purchase Receipt", "Stock Entry", "Delivery Note", "Item"}
@@ -198,6 +199,8 @@ def _source_rows(source_doctype: str, source_name: str, warehouse: str | None = 
 		frappe.throw(f"Джерело {source_doctype} ще не підтримується")
 	doc = frappe.get_doc(source_doctype, source_name)
 	doc.check_permission("read")
+	if source_doctype == "Purchase Receipt" and doc.docstatus != 1:
+		frappe.throw("Цінники з прихідної накладної доступні лише після її проведення")
 	if source_doctype == "Stock Entry" and doc.get("purpose") != "Material Transfer":
 		frappe.throw("Цінники зі Stock Entry доступні лише для Material Transfer")
 	if source_doctype == "Item":
@@ -222,6 +225,9 @@ def _source_rows(source_doctype: str, source_name: str, warehouse: str | None = 
 			row_uom = row.get("stock_uom") or row.get("uom")
 		elif source_doctype == "Purchase Receipt":
 			row_uom = row.get("stock_uom") or row.get("uom")
+			row_warehouse = resolve_receipt_warehouse(
+				row.get("warehouse"), doc.get("set_warehouse"), warehouse
+			)
 		else:
 			row_warehouse = row.get("warehouse") or warehouse
 		rows.append(

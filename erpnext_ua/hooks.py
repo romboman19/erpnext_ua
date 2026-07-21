@@ -25,24 +25,28 @@ before_migrate = [
 after_install = [
 	"erpnext_ua.install.ensure_app_modules",
 	"erpnext_ua.install.ensure_accounting_setup",
+	"erpnext_ua.install.ensure_receiving_setup",
 	"erpnext_ua.install.ensure_pos_workspace",
     "erpnext_ua.install.ensure_tax_parameters",
     "erpnext_ua.install.ensure_pos_setup",
 	"erpnext_ua.install.ensure_prro_setup",
 	"erpnext_ua.install.ensure_pos_printers",
 	"erpnext_ua.install.ensure_pos_page",
+	"erpnext_ua.install.ensure_price_tag_doctypes",
 	"erpnext_ua.install.ensure_price_tag_setup",
 ]
 
 after_migrate = [
 	"erpnext_ua.install.ensure_app_modules",
 	"erpnext_ua.install.ensure_accounting_setup",
+	"erpnext_ua.install.ensure_receiving_setup",
 	"erpnext_ua.install.ensure_pos_workspace",
     "erpnext_ua.install.ensure_tax_parameters",
     "erpnext_ua.install.ensure_pos_setup",
 	"erpnext_ua.install.ensure_prro_setup",
 	"erpnext_ua.install.ensure_pos_printers",
 	"erpnext_ua.install.ensure_pos_page",
+	"erpnext_ua.install.ensure_price_tag_doctypes",
 	"erpnext_ua.install.ensure_price_tag_setup",
 ]
 
@@ -60,6 +64,9 @@ doc_events = {
     "Sales Invoice": {
         "on_submit": "erpnext_ua.ua_fiscal.sales_invoice.on_submit",
     },
+	"Purchase Receipt": {
+		"before_submit": "erpnext_ua.ua_receiving.service.validate_purchase_receipt",
+	},
 }
 
 scheduler_events = {
