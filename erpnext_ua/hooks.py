@@ -54,10 +54,10 @@ doctype_js = {
 	"Sales Invoice": "ua_fiscal/doctype_js/sales_invoice_fiscal.js",
 	"PB POS Terminal": "ua_pos/public/js/pb_pos_terminal.js",
 	"PRRO Receipt": "ua_fiscal/doctype_js/prro_receipt.js",
-	"Purchase Receipt": "ua_price_tags/public/js/price_tag_source.js",
-	"Stock Entry": "ua_price_tags/public/js/price_tag_source.js",
-	"Delivery Note": "ua_price_tags/public/js/price_tag_source.js",
-	"Item": "ua_price_tags/public/js/price_tag_source.js",
+	"Purchase Receipt": "public/js/price_tag_source.js",
+	"Stock Entry": "public/js/price_tag_source.js",
+	"Delivery Note": "public/js/price_tag_source.js",
+	"Item": "public/js/price_tag_source.js",
 }
 
 doc_events = {

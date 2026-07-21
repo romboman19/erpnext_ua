@@ -14,7 +14,7 @@ class TestPriceTagContracts(unittest.TestCase):
 	def test_module_and_source_buttons_are_registered(self):
 		self.assertIn("UA Price Tags", (APP / "modules.txt").read_text(encoding="utf-8"))
 		for doctype in ("Purchase Receipt", "Stock Entry", "Delivery Note", "Item"):
-			self.assertEqual(hooks.doctype_js[doctype], "ua_price_tags/public/js/price_tag_source.js")
+			self.assertEqual(hooks.doctype_js[doctype], "public/js/price_tag_source.js")
 		self.assertIn("erpnext_ua.install.ensure_price_tag_setup", hooks.after_install)
 		self.assertIn("erpnext_ua.install.ensure_price_tag_setup", hooks.after_migrate)
 

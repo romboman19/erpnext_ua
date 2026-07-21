@@ -39,9 +39,9 @@ class TestReceivingContracts(unittest.TestCase):
 		self.assertNotIn("invoice.submit()", service)
 
 	def test_receipt_completion_requires_submit_and_repairs_warehouse(self):
-		javascript = (
-			APP / "ua_price_tags" / "public" / "js" / "price_tag_source.js"
-		).read_text(encoding="utf-8")
+		javascript = (APP / "public" / "js" / "price_tag_source.js").read_text(
+			encoding="utf-8"
+		)
 		self.assertIn('doctype === "Purchase Receipt" && frm.doc.docstatus !== 1', javascript)
 		self.assertIn('__("Завершити приймання")', javascript)
 
