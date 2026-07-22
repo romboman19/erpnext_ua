@@ -1,0 +1,20 @@
+{
+ "app": "erpnext_ua",
+ "creation": "2026-07-15 18:30:00.000000",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "point-of-sale",
+ "icon_type": "Link",
+ "idx": 1,
+ "label": "UA POS Workspace",
+ "link_to": "UA POS Workspace",
+ "link_type": "Workspace Sidebar",
+ "modified": "2026-07-15 18:30:00.000000",
+ "modified_by": "Administrator",
+ "name": "UA POS Workspace",
+ "owner": "Administrator",
+ "parent_icon": "ERPNext Ukraine",
+ "roles": [],
+ "standard": 1
+}

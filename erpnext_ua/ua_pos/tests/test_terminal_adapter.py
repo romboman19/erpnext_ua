@@ -1,0 +1,73 @@
+import unittest
+
+from erpnext_ua.ua_pos.adapters.terminal import PrivatPosAdapter, PrivatPOSGatewayClient
+
+
+class FakeClient:
+	def __init__(self, result):
+		self.result = result
+		self.calls = []
+
+	def operation(self, *args, **kwargs):
+		self.calls.append((args, kwargs))
+		return self.result
+
+	def status(self, *args, **kwargs):
+		self.calls.append((args, kwargs))
+		return self.result
+
+	def ping(self, *args, **kwargs):
+		return self.result
+
+
+class RecordingGateway(PrivatPOSGatewayClient):
+	def __init__(self, responses):
+		super().__init__("http://gateway.invalid", "test-key")
+		self.responses = list(responses)
+		self.paths = []
+
+	def _request(self, method, path, *, json=None):
+		self.paths.append(path)
+		return self.responses.pop(0)
+
+
+class TestPrivatPosAdapter(unittest.TestCase):
+	def test_sale_maps_approved_response(self):
+		client = FakeClient({"responseCode": "0000", "rrn": "42", "invoiceNumber": "7"})
+		result = PrivatPosAdapter(client).sale({"ip": "127.0.0.1", "port": 2000}, 10, "op-1")
+		self.assertEqual(result.status, "confirmed")
+		self.assertEqual(result.rrn, "42")
+		self.assertEqual(len(client.calls), 1)
+
+	def test_timeout_is_unknown_and_not_retried(self):
+		client = FakeClient({"error": True, "description": "timeout"})
+		result = PrivatPosAdapter(client).sale({"ip": "127.0.0.1", "port": 2000}, 10, "op-2")
+		self.assertEqual(result.status, "unknown")
+		self.assertEqual(len(client.calls), 1)
+
+	def test_status_uses_original_operation_id(self):
+		client = FakeClient({"status": "approved"})
+		result = PrivatPosAdapter(client).status({"ip": "127.0.0.1", "port": 2000}, "op-3")
+		self.assertEqual(result.status, "confirmed")
+		self.assertEqual(client.calls[0][0][1], "op-3")
+
+	def test_server_error_is_unknown_not_a_second_payment(self):
+		gateway = RecordingGateway([{"error": True, "_http_status": 500, "description": "gateway error"}])
+		result = gateway.operation("sale", "127.0.0.1", 10, "op-4")
+		self.assertTrue(result["error"])
+		self.assertEqual(gateway.paths, ["/v1/pos/operation"])
+
+	def test_legacy_fallback_is_used_only_for_definite_404(self):
+		gateway = RecordingGateway(
+			[
+				{"error": True, "_http_status": 404},
+				{"responseCode": "0000", "_http_status": 200},
+			]
+		)
+		result = gateway.operation("sale", "127.0.0.1", 10, "op-5")
+		self.assertEqual(result["responseCode"], "0000")
+		self.assertEqual(gateway.paths, ["/v1/pos/operation", "/purchase"])
+
+
+if __name__ == "__main__":
+	unittest.main()

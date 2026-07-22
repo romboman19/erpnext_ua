@@ -4,17 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "erpnext_ua"
-version = "0.3.0"
-description = "ERPNext Ukraine localization: FOP profiles, tax parameters, print formats, translations"
+version = "0.8.0"
+description = "ERPNext Ukraine business layer: FOP, POS, PRRO, accounting, documents, price tags and translations"
 requires-python = ">=3.14"
 readme = "README.md"
+dependencies = [
+    "qrcode>=8.0,<9",
+]
 
 [tool.setuptools]
 include-package-data = true
-
-[tool.setuptools.packages.find]
-include = ["erpnext_ua*"]
-exclude = ["public*", "docs*", "tests*"]
 
 [tool.setuptools.package-data]
 erpnext_ua = [
@@ -26,7 +25,12 @@ erpnext_ua = [
     "**/*.svg",
     "**/*.txt",
     "**/*.xsd",
+    "**/*.css",
 ]
+
+[tool.setuptools.packages.find]
+include = ["erpnext_ua*"]
+exclude = ["public*", "docs*", "tests*"]
 
 [tool.black]
 line-length = 120

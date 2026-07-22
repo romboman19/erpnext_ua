@@ -30,8 +30,7 @@ def _mock_si(name, is_return=False, return_against=None):
 
 
 def _cleanup():
-	for n in frappe.get_all("PRRO Receipt", filters={"cash_register": TESTREG}, pluck="name"):
-		frappe.delete_doc("PRRO Receipt", n, force=True)
+	frappe.db.delete("PRRO Receipt", {"cash_register": TESTREG})
 	frappe.db.commit()
 
 

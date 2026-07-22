@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  static-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Validate Python, DocTypes and browser code
+        run: |
+          python -m compileall -q erpnext_ua
+          find erpnext_ua -name '*.json' -print0 | xargs -0 -n1 jq -e . >/dev/null
+          node --check erpnext_ua/ua_pos/page/ua_pos/ua_pos.js
+          git diff --check
+      - name: Validate Ukrainian catalog
+        run: python -m unittest discover -s erpnext_ua/tests -p "test*.py"
+      - name: Build distributable app
+        run: |
+          python -m pip install --disable-pip-version-check build
+          python -m build
+          python -c "import zipfile,glob; p=glob.glob('dist/*.whl')[0]; n=zipfile.ZipFile(p).namelist(); assert any(x.endswith('translations/uk.csv') for x in n); assert sum(x.endswith('.xsd') for x in n)==3"

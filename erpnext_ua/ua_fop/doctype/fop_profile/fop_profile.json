@@ -7,6 +7,7 @@
  "field_order": [
   "company",
   "fop_full_name",
+  "prro_registered_name",
   "tax_id",
   "column_break_ident",
   "status",
@@ -46,6 +47,13 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "ПІБ підприємця",
+   "reqd": 1
+  },
+  {
+   "description": "Точне найменування з реєстраційних даних ДПС для XML-поля ORGNM. Регістр, пробіли та префікси мають збігатися буквально.",
+   "fieldname": "prro_registered_name",
+   "fieldtype": "Data",
+   "label": "Найменування для ПРРО (ORGNM)",
    "reqd": 1
   },
   {

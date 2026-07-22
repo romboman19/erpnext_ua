@@ -1,0 +1,16 @@
+{
+ "doctype":"DocType","name":"POS Event Log","module":"UA POS","autoname":"POS-EVT-.YYYY.-.#####",
+ "field_order":["event_type","event_at","user","employee","cash_desk","reference_doctype","reference_name","details_json","reason"],
+ "fields":[
+  {"fieldname":"event_type","fieldtype":"Data","label":"Event Type","reqd":1},
+  {"fieldname":"event_at","fieldtype":"Datetime","label":"Event At","reqd":1},
+  {"fieldname":"user","fieldtype":"Link","label":"User","options":"User"},
+  {"fieldname":"employee","fieldtype":"Link","label":"Employee","options":"Employee"},
+  {"fieldname":"cash_desk","fieldtype":"Link","label":"Cash Desk","options":"POS Cash Desk"},
+  {"fieldname":"reference_doctype","fieldtype":"Link","label":"Reference Type","options":"DocType"},
+  {"fieldname":"reference_name","fieldtype":"Dynamic Link","label":"Reference","options":"reference_doctype"},
+  {"fieldname":"details_json","fieldtype":"Code","label":"Details","options":"JSON"},
+  {"fieldname":"reason","fieldtype":"Small Text","label":"Reason"}
+ ],
+ "permissions":[{"role":"POS Manager","read":1},{"role":"POS Administrator","read":1},{"role":"System Manager","read":1}]
+}

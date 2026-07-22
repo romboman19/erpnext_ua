@@ -1,0 +1,23 @@
+{
+ "doctype": "DocType",
+ "name": "POS Birthday Benefit",
+ "module": "UA POS",
+ "autoname": "BIRTH-.YYYY.-.#####",
+ "field_order": ["customer", "benefit_year", "pos_order", "discount_percent", "used_at", "usage_key"],
+ "fields": [
+  {"fieldname": "customer", "fieldtype": "Link", "label": "Покупець", "options": "Customer", "reqd": 1, "read_only": 1},
+  {"fieldname": "benefit_year", "fieldtype": "Int", "label": "Рік", "reqd": 1, "read_only": 1},
+  {"fieldname": "pos_order", "fieldtype": "Link", "label": "POS-чек", "options": "POS Order", "reqd": 1, "read_only": 1},
+  {"fieldname": "discount_percent", "fieldtype": "Percent", "label": "Знижка", "read_only": 1},
+  {"fieldname": "used_at", "fieldtype": "Datetime", "label": "Використано", "read_only": 1},
+  {"fieldname": "usage_key", "fieldtype": "Data", "label": "Usage Key", "unique": 1, "reqd": 1, "read_only": 1}
+ ],
+ "permissions": [
+  {"role": "POS Manager", "read": 1},
+  {"role": "POS Administrator", "read": 1},
+  {"role": "System Manager", "read": 1}
+ ],
+ "engine": "InnoDB",
+ "sort_field": "used_at",
+ "sort_order": "DESC"
+}

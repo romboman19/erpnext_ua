@@ -1,0 +1,11 @@
+{
+ "doctype":"DocType","name":"POS Denomination Count","module":"UA POS","istable":1,
+ "field_order":["context","currency","denomination","qty","subtotal"],
+ "fields":[
+  {"fieldname":"context","fieldtype":"Select","label":"Context","options":"Opening\nClosing\nTransfer\nExpense\nIncassation"},
+  {"fieldname":"currency","fieldtype":"Link","label":"Currency","options":"Currency","default":"UAH","reqd":1},
+  {"fieldname":"denomination","fieldtype":"Currency","label":"Denomination","reqd":1},
+  {"fieldname":"qty","fieldtype":"Int","label":"Quantity","reqd":1},
+  {"fieldname":"subtotal","fieldtype":"Currency","label":"Subtotal","read_only":1}
+ ]
+}

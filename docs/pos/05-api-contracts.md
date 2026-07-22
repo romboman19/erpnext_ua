@@ -75,8 +75,8 @@ FiscalDocResult:
 
 ## 2. Terminal Adapter (Python, `ua_pos/adapters/terminal.py`)
 
-Реалізація фази 1 — `PrivatPosAdapter` поверх `ukrainian_integrations.payments.privat_pos`
-(gateway `pb-pos-gateway`).
+Реалізація — `PrivatPosAdapter` безпосередньо у `erpnext_ua.ua_pos.adapters.terminal`
+(gateway `pb-pos-gateway`). Так касова транзакція, її стан та recovery версіюються атомарно.
 
 ```python
 class TerminalAdapter(ABC):
@@ -210,8 +210,10 @@ POS не реалізує ідентифікацію, лише викликає 
 ```
 POST customer.identify.begin  {channel: sms|call|telegram, phone}  → {request_id}
 POST customer.identify.confirm {request_id, code?}                 → {customer_id, verified: bool}
-POST customer.quick_create     {name, phone, loyalty_optin}        → {customer_id}
+POST customer.quick_create     {request_id, customer_name}         → {customer_id}
 GET  customer.loyalty_state    {customer_id}                       → {points, allowed_redeem, program}
 ```
 
-Реалізація каналів — `ukrainian_integrations` (TurboSMS/VitalPBX/Telegram-бот), фаза 5+.
+Реалізація каналів — `erpnext_ukraine_integrations/customer_identification`:
+TurboSMS OTP, Telegram contact deep-link і контрольний вхідний дзвінок через VitalPBX.
+POS використовує один контракт і не залежить від деталей конкретного каналу.

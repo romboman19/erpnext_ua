@@ -1,0 +1,27 @@
+{
+ "app": "erpnext_ua",
+ "creation": "2026-07-15 13:30:00.000000",
+ "docstatus": 0,
+ "doctype": "Workspace Sidebar",
+ "header_icon": "setting",
+ "idx": 0,
+ "items": [
+  {"child": 0, "collapsible": 1, "icon": "accounting", "indent": 0, "keep_closed": 0, "label": "FOP", "link_to": "UA FOP", "link_type": "Workspace", "show_arrow": 0, "type": "Link"},
+  {"child": 0, "collapsible": 1, "icon": "point-of-sale", "indent": 0, "keep_closed": 0, "label": "UA POS", "link_to": "UA POS Workspace", "link_type": "Workspace", "show_arrow": 0, "type": "Link"},
+  {"child": 0, "collapsible": 1, "icon": "home", "indent": 0, "keep_closed": 0, "label": "Fiscalization", "link_to": "UA Fiscal", "link_type": "Workspace", "show_arrow": 0, "type": "Link"},
+  {"child": 0, "collapsible": 1, "icon": "settings", "indent": 1, "keep_closed": 0, "label": "Fiscal Setup", "link_type": "DocType", "show_arrow": 0, "type": "Section Break"},
+  {"child": 1, "collapsible": 1, "icon": "", "indent": 0, "keep_closed": 0, "label": "PRRO Settings", "link_to": "PRRO Settings", "link_type": "DocType", "show_arrow": 0, "type": "Link"},
+  {"child": 1, "collapsible": 1, "icon": "", "indent": 0, "keep_closed": 0, "label": "KEP Keys", "link_to": "UA KEP Key", "link_type": "DocType", "show_arrow": 0, "type": "Link"},
+  {"child": 1, "collapsible": 1, "icon": "", "indent": 0, "keep_closed": 0, "label": "Cash Registers", "link_to": "PRRO Cash Register", "link_type": "DocType", "show_arrow": 0, "type": "Link"},
+  {"child": 0, "collapsible": 1, "icon": "list", "indent": 1, "keep_closed": 0, "label": "Fiscal Documents", "link_type": "DocType", "show_arrow": 0, "type": "Section Break"},
+  {"child": 1, "collapsible": 1, "icon": "", "indent": 0, "keep_closed": 0, "label": "PRRO Shifts", "link_to": "PRRO Shift", "link_type": "DocType", "show_arrow": 0, "type": "Link"},
+  {"child": 1, "collapsible": 1, "icon": "", "indent": 0, "keep_closed": 0, "label": "PRRO Receipts", "link_to": "PRRO Receipt", "link_type": "DocType", "show_arrow": 0, "type": "Link"}
+ ],
+ "modified": "2026-07-15 13:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "UA Fiscal",
+ "name": "UA Fiscal",
+ "owner": "Administrator",
+ "standard": 1,
+ "title": "UA Fiscal"
+}

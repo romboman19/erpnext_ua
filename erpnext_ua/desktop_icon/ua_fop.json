@@ -1,0 +1,20 @@
+{
+ "app": "erpnext_ua",
+ "creation": "2026-07-15 13:30:00.000000",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "accounting",
+ "icon_type": "Link",
+ "idx": 2,
+ "label": "UA FOP",
+ "link_to": "UA FOP",
+ "link_type": "Workspace Sidebar",
+ "modified": "2026-07-15 13:30:00.000000",
+ "modified_by": "Administrator",
+ "name": "UA FOP",
+ "owner": "Administrator",
+ "parent_icon": "ERPNext Ukraine",
+ "roles": [],
+ "standard": 1
+}

@@ -12,6 +12,8 @@
   "column_break_dps",
   "request_timeout",
   "offline_queue_enabled",
+  "offline_auto_recovery",
+  "allow_custom_fiscal_server",
   "section_sign",
   "signservice_url",
   "column_break_sign",
@@ -63,6 +65,19 @@
    "fieldname": "offline_queue_enabled",
    "fieldtype": "Check",
    "label": "Офлайн-черга при недоступності ДПС"
+  },
+  {
+   "default": "1",
+   "fieldname": "offline_auto_recovery",
+   "fieldtype": "Check",
+   "label": "Автоматично передавати офлайн-чергу"
+  },
+  {
+   "default": "0",
+   "description": "Дозволяє бойовому режиму надсилати підписані документи на хост, відмінний від офіційного fs.tax.gov.ua. Увімкнення небезпечне.",
+   "fieldname": "allow_custom_fiscal_server",
+   "fieldtype": "Check",
+   "label": "Дозволити нестандартний сервер ДПС"
   },
   {
    "fieldname": "section_sign",
