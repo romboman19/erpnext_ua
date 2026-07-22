@@ -11,6 +11,7 @@
   "column_break_main",
   "status",
   "fiscal_number",
+  "register_local_number",
   "section_unit",
   "unit_name",
   "unit_address",
@@ -20,7 +21,20 @@
   "default_kep_key",
   "column_break_signing",
   "next_local_number",
-  "current_shift"
+  "current_shift",
+  "section_runtime",
+  "runtime_state",
+  "active_offline_session",
+  "column_break_runtime",
+  "offline_session_id",
+  "offline_seed",
+  "offline_month_minutes",
+  "last_server_sync",
+  "section_device",
+  "device_id",
+  "column_break_device",
+  "device_registered",
+  "device_registered_at"
  ],
  "fields": [
   {
@@ -66,6 +80,14 @@
    "label": "Фіскальний номер ПРРО",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "default": "1",
+   "description": "Локальний номер ПРРО з форми 1-ПРРО (CASHDESKNUM). Це не локальний номер чека.",
+   "fieldname": "register_local_number",
+   "fieldtype": "Int",
+   "label": "Локальний номер ПРРО",
+   "reqd": 1
   },
   {
    "fieldname": "section_unit",
@@ -126,6 +148,87 @@
    "label": "Поточна зміна",
    "options": "PRRO Shift",
    "read_only": 1
+  },
+  {
+   "fieldname": "section_runtime",
+   "fieldtype": "Section Break",
+   "label": "Стан і офлайн-резерв"
+  },
+  {
+   "default": "Online",
+   "fieldname": "runtime_state",
+   "fieldtype": "Select",
+   "label": "Режим ПРРО",
+   "options": "Online\nOffline\nRecovering\nBlocked\nError",
+   "read_only": 1
+  },
+  {
+   "fieldname": "active_offline_session",
+   "fieldtype": "Link",
+   "label": "Активна офлайн-сесія",
+   "options": "PRRO Offline Session",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_runtime",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Наступний ідентифікатор офлайн-сесії, виданий ДПС",
+   "fieldname": "offline_session_id",
+   "fieldtype": "Data",
+   "label": "Резервний ID офлайн-сесії",
+   "read_only": 1
+  },
+  {
+   "description": "Секретне число ДПС для розрахунку офлайн-номерів",
+   "fieldname": "offline_seed",
+   "fieldtype": "Password",
+   "label": "Секрет офлайн-сесії",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "offline_month_minutes",
+   "fieldtype": "Int",
+   "label": "Офлайн за місяць, хв",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_server_sync",
+   "fieldtype": "Datetime",
+   "label": "Остання синхронізація з ДПС",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_device",
+   "fieldtype": "Section Break",
+   "label": "Реєстрація пристрою"
+  },
+  {
+   "description": "Стабільний UUID інсталяції. Не змінюйте після реєстрації у ДПС.",
+   "fieldname": "device_id",
+   "fieldtype": "Data",
+   "label": "Ідентифікатор пристрою",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_device",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "device_registered",
+   "fieldtype": "Check",
+   "label": "Пристрій зареєстровано у ДПС",
+   "read_only": 1
+  },
+  {
+   "fieldname": "device_registered_at",
+   "fieldtype": "Datetime",
+   "label": "Зареєстровано",
+   "read_only": 1
   }
  ],
  "links": [
@@ -135,6 +238,10 @@
   },
   {
    "link_doctype": "PRRO Receipt",
+   "link_fieldname": "cash_register"
+  },
+  {
+   "link_doctype": "PRRO Offline Session",
    "link_fieldname": "cash_register"
   }
  ],

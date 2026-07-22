@@ -1,0 +1,23 @@
+{
+ "doctype": "DocType", "name": "PB POS Terminal", "module": "UA POS", "autoname": "field:terminal_name",
+ "title_field": "terminal_name", "search_fields": "terminal_name,ip_address",
+ "field_order": ["terminal_name", "is_active", "ip_address", "tcp_port", "cash_desk", "fiscal_section", "merchant_id", "device_id", "payment_system_name", "payment_system_tax_number", "acquirer_name", "acquirer_tax_number"],
+ "fields": [
+  {"fieldname": "terminal_name", "fieldtype": "Data", "label": "Terminal Name", "reqd": 1, "unique": 1},
+  {"fieldname": "is_active", "fieldtype": "Check", "label": "Active", "default": "1"},
+  {"fieldname": "ip_address", "fieldtype": "Data", "label": "IP Address", "reqd": 1},
+  {"fieldname": "tcp_port", "fieldtype": "Int", "label": "TCP Port", "default": "2000"},
+  {"fieldname": "cash_desk", "fieldtype": "Link", "label": "POS Cash Desk", "options": "POS Cash Desk"},
+  {"fieldname": "fiscal_section", "fieldtype": "Section Break", "label": "Реквізити для фіскального чека"},
+  {"fieldname": "merchant_id", "fieldtype": "Data", "label": "Ідентифікатор торговця в еквайра", "description": "Merchant ID із договору еквайрингу; передається як ACQUIREID"},
+  {"fieldname": "device_id", "fieldtype": "Data", "label": "Ідентифікатор платіжного пристрою", "description": "Ідентифікатор/серійний номер термінала у квитанції еквайра"},
+  {"fieldname": "payment_system_name", "fieldtype": "Data", "label": "Платіжна система", "description": "Наприклад VISA / Mastercard; якщо термінал повертає конкретну систему, вона має пріоритет"},
+  {"fieldname": "payment_system_tax_number", "fieldtype": "Data", "label": "Податковий номер платіжної системи"},
+  {"fieldname": "acquirer_name", "fieldtype": "Data", "label": "Найменування еквайра"},
+  {"fieldname": "acquirer_tax_number", "fieldtype": "Data", "label": "Податковий номер еквайра"}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+  {"role": "Accounts Manager", "read": 1}
+ ]
+}

@@ -1,0 +1,19 @@
+{
+ "doctype":"DocType","name":"POS Payment Attempt","module":"UA POS","autoname":"POS-PAY-.YYYY.-.#####",
+ "field_order":["pos_order","attempt_no","mode_of_payment","kind","amount","currency","status","idem_key","terminal_transaction","error_code","error_text","resolved_by"],
+ "fields":[
+  {"fieldname":"pos_order","fieldtype":"Link","label":"POS Order","options":"POS Order","reqd":1},
+  {"fieldname":"attempt_no","fieldtype":"Int","label":"Attempt Number","reqd":1},
+  {"fieldname":"mode_of_payment","fieldtype":"Link","label":"Mode of Payment","options":"Mode of Payment","reqd":1},
+  {"fieldname":"kind","fieldtype":"Select","label":"Kind","options":"Cash\nCard\nIBAN\nBonus\nInstallment","reqd":1},
+  {"fieldname":"amount","fieldtype":"Currency","label":"Amount","reqd":1},
+  {"fieldname":"currency","fieldtype":"Link","label":"Currency","options":"Currency","default":"UAH","reqd":1},
+  {"fieldname":"status","fieldtype":"Select","label":"Status","options":"Created\nSent\nConfirmed\nDeclined\nTimeout\nUnknown\nManual Resolved\nReversed\nFailed","default":"Created","reqd":1},
+  {"fieldname":"idem_key","fieldtype":"Data","label":"Idempotency Key","unique":1,"reqd":1},
+  {"fieldname":"terminal_transaction","fieldtype":"Link","label":"Terminal Transaction","options":"Terminal Transaction"},
+  {"fieldname":"error_code","fieldtype":"Data","label":"Error Code"},
+  {"fieldname":"error_text","fieldtype":"Small Text","label":"Error"},
+  {"fieldname":"resolved_by","fieldtype":"Link","label":"Resolved By","options":"User"}
+ ],
+ "permissions":[{"role":"POS Cashier","read":1},{"role":"POS Manager","read":1},{"role":"POS Administrator","read":1},{"role":"System Manager","read":1}]
+}

@@ -7,15 +7,20 @@
   "cash_register",
   "shift",
   "receipt_type",
+  "receipt_kind",
   "column_break_main",
   "status",
   "sales_invoice",
+  "pos_order",
+  "idem_key",
   "section_numbers",
   "local_number",
   "fiscal_number",
+  "uid",
   "column_break_numbers",
   "fiscalized_at",
   "is_offline",
+  "offline_session",
   "section_amounts",
   "total_amount",
   "column_break_amounts",
@@ -23,10 +28,17 @@
   "section_payload",
   "receipt_xml",
   "signature_status",
+  "signed_document_base64",
+  "signed_document_hash",
+  "previous_document_hash",
+  "payment_summary",
+  "tax_summary",
   "section_response",
   "dps_response",
   "error_message",
   "retry_count",
+  "next_retry_at",
+  "response_state",
   "section_qr",
   "qr_data"
  ],
@@ -54,7 +66,15 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Тип",
-   "options": "Продаж\nПовернення\nСлужбове внесення\nСлужбова видача"
+   "options": "Продаж\nПовернення\nСлужбове внесення\nСлужбова видача\nВідкриття зміни\nЗакриття зміни\nZ-звіт\nПочаток офлайн\nЗавершення офлайн"
+  },
+  {
+   "default": "Sale",
+   "fieldname": "receipt_kind",
+   "fieldtype": "Select",
+   "label": "Клас документа",
+   "options": "Sale\nReturn\nStorno\nService In\nService Out\nOpen Shift\nClose Shift\nZ Report\nOffline Begin\nOffline End",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_main",
@@ -67,13 +87,27 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Статус",
-   "options": "Draft\nSigned\nSubmitted\nFiscalized\nOffline\nError\nCancelled"
+   "options": "Draft\nSigned\nSending\nUncertain\nSubmitted\nFiscalized\nOffline\nQueued\nError\nCancelled"
   },
   {
    "fieldname": "sales_invoice",
    "fieldtype": "Link",
    "label": "Sales Invoice",
    "options": "Sales Invoice"
+  },
+  {
+   "fieldname": "pos_order",
+   "fieldtype": "Link",
+   "label": "POS Order",
+   "options": "POS Order"
+  },
+  {
+   "description": "Стабільний ключ ідемпотентності бізнес-операції",
+   "fieldname": "idem_key",
+   "fieldtype": "Data",
+   "label": "Ключ ідемпотентності",
+   "read_only": 1,
+   "unique": 1
   },
   {
    "fieldname": "section_numbers",
@@ -95,6 +129,13 @@
    "read_only": 1
   },
   {
+   "fieldname": "uid",
+   "fieldtype": "Data",
+   "label": "UID документа",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
    "fieldname": "column_break_numbers",
    "fieldtype": "Column Break"
   },
@@ -110,6 +151,13 @@
    "fieldname": "is_offline",
    "fieldtype": "Check",
    "label": "Офлайн",
+   "read_only": 1
+  },
+  {
+   "fieldname": "offline_session",
+   "fieldtype": "Link",
+   "label": "Офлайн-сесія",
+   "options": "PRRO Offline Session",
    "read_only": 1
   },
   {
@@ -153,6 +201,39 @@
    "read_only": 1
   },
   {
+   "fieldname": "signed_document_base64",
+   "fieldtype": "Long Text",
+   "hidden": 1,
+   "label": "Підписаний документ (Base64)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "signed_document_hash",
+   "fieldtype": "Data",
+   "label": "SHA-256 підписаного документа",
+   "read_only": 1
+  },
+  {
+   "fieldname": "previous_document_hash",
+   "fieldtype": "Data",
+   "label": "Геш попереднього офлайн-документа",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payment_summary",
+   "fieldtype": "Code",
+   "label": "Оплати (JSON)",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tax_summary",
+   "fieldtype": "Code",
+   "label": "Податки (JSON)",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
    "collapsible": 1,
    "fieldname": "section_response",
    "fieldtype": "Section Break",
@@ -175,6 +256,20 @@
    "fieldname": "retry_count",
    "fieldtype": "Int",
    "label": "Спроб відправки",
+   "read_only": 1
+  },
+  {
+   "fieldname": "next_retry_at",
+   "fieldtype": "Datetime",
+   "label": "Наступна спроба",
+   "read_only": 1
+  },
+  {
+   "default": "Not Sent",
+   "fieldname": "response_state",
+   "fieldtype": "Select",
+   "label": "Стан доставки",
+   "options": "Not Sent\nConfirmed\nUncertain\nRejected",
    "read_only": 1
   },
   {

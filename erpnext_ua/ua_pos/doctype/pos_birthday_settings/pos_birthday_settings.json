@@ -1,0 +1,35 @@
+{
+ "doctype": "DocType",
+ "name": "POS Birthday Settings",
+ "module": "UA POS",
+ "issingle": 1,
+ "field_order": [
+  "enabled", "eligible_customer_group", "discount_percent", "days_before", "days_after",
+  "min_age", "max_age", "minimum_order_amount", "one_time_per_year",
+  "greeting_section", "greeting_enabled", "greeting_days_before", "greeting_channel",
+  "greeting_template", "auto_send_greetings"
+ ],
+ "fields": [
+  {"fieldname": "enabled", "fieldtype": "Check", "label": "Увімкнути знижку до дня народження", "default": "0"},
+  {"fieldname": "eligible_customer_group", "fieldtype": "Link", "label": "Група покупців", "options": "Customer Group", "description": "Порожньо — всі групи."},
+  {"fieldname": "discount_percent", "fieldtype": "Percent", "label": "Знижка, %", "default": "10"},
+  {"fieldname": "days_before", "fieldtype": "Int", "label": "Днів до дня народження", "default": "5"},
+  {"fieldname": "days_after", "fieldtype": "Int", "label": "Днів після дня народження", "default": "2"},
+  {"fieldname": "min_age", "fieldtype": "Int", "label": "Мінімальний вік"},
+  {"fieldname": "max_age", "fieldtype": "Int", "label": "Максимальний вік", "description": "0 — без обмеження."},
+  {"fieldname": "minimum_order_amount", "fieldtype": "Currency", "label": "Мінімальна сума чека"},
+  {"fieldname": "one_time_per_year", "fieldtype": "Check", "label": "Використання один раз на рік", "default": "1"},
+  {"fieldname": "greeting_section", "fieldtype": "Section Break", "label": "Привітання покупців"},
+  {"fieldname": "greeting_enabled", "fieldtype": "Check", "label": "Увімкнути привітання", "default": "0"},
+  {"fieldname": "greeting_days_before", "fieldtype": "Int", "label": "Надіслати за днів до дня народження", "default": "0"},
+  {"fieldname": "greeting_channel", "fieldtype": "Select", "label": "Канал", "options": "Auto\nSMS\nTelegram", "default": "Auto"},
+  {"fieldname": "greeting_template", "fieldtype": "Small Text", "label": "Текст привітання", "default": "Вітаємо, {first_name}! Даруємо знижку {discount_percent}% до дня народження. Пропозиція діє до {valid_until}."},
+  {"fieldname": "auto_send_greetings", "fieldtype": "Check", "label": "Надсилати автоматично", "default": "0"}
+ ],
+ "permissions": [
+  {"role": "POS Manager", "read": 1, "write": 1},
+  {"role": "POS Administrator", "read": 1, "write": 1},
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1}
+ ],
+ "engine": "InnoDB"
+}
