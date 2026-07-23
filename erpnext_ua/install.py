@@ -506,6 +506,7 @@ def ensure_pos_setup():
 				{"fieldname": "ua_pos_order", "label": "POS Order", "fieldtype": "Link", "options": "POS Order"},
 				{"fieldname": "ua_pos_desk", "label": "POS Cash Desk", "fieldtype": "Link", "options": "POS Cash Desk"},
 				{"fieldname": "ua_pos_shift", "label": "POS Operational Shift", "fieldtype": "Link", "options": "POS Operational Shift"},
+				{"fieldname": "ua_pos_employee", "label": "POS Employee", "fieldtype": "Link", "options": "Employee"},
 				{"fieldname": "ua_fop_profile", "label": "FOP Profile", "fieldtype": "Link", "options": "FOP Profile"},
 			],
 			"Mode of Payment": [
@@ -552,8 +553,10 @@ def ensure_pos_setup():
 		update=True,
 	)
 	from erpnext_ua.ua_pos.employee_barcode import backfill_employee_barcodes
+	from erpnext_ua.ua_pos.setup import backfill_cash_desk_bridge
 
 	backfill_employee_barcodes()
+	backfill_cash_desk_bridge()
 	ensure_payment_method_catalog()
 	frappe.db.commit()
 

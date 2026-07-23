@@ -536,11 +536,33 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
       title,
       fields: [
         { fieldname: "amount", fieldtype: "Currency", label: "Сума, грн", reqd: 1 },
+        ...(movementType === "Expense" ? [{
+          fieldname: "expense_account",
+          fieldtype: "Link",
+          label: "Рахунок витрат",
+          options: "Account",
+          reqd: 1,
+          get_query: () => ({
+            filters: {
+              company: state.session?.desk?.company,
+              root_type: "Expense",
+              is_group: 0,
+              disabled: 0,
+            },
+          }),
+        }] : []),
         { fieldname: "notes", fieldtype: "Small Text", label: "Підстава / коментар", reqd: movementType !== "Cash In" },
       ],
       primary_action_label: "Провести операцію",
       primary_action: async (values) => {
-        const result = await api("cash_operation", { pos_session_token: state.token, movement_type: movementType, amount: values.amount, notes: values.notes || "", idem_key: idem() });
+        const result = await api("cash_operation", {
+          pos_session_token: state.token,
+          movement_type: movementType,
+          amount: values.amount,
+          expense_account: values.expense_account || null,
+          notes: values.notes || "",
+          idem_key: idem(),
+        });
         dialog.hide();
         frappe.show_alert({ message: `${title}: ${money(values.amount)} грн · залишок ${money(result.cash_balance)} грн`, indicator: "green" });
       },

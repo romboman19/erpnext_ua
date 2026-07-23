@@ -69,6 +69,7 @@ doctype_list_js = {
 
 doc_events = {
     "Sales Invoice": {
+        "before_submit": "erpnext_ua.ua_pos.accounting.apply_cash_desk_payment_accounts",
         "on_submit": "erpnext_ua.ua_fiscal.sales_invoice.on_submit",
     },
 	"Employee": {

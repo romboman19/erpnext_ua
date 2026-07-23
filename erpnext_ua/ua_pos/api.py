@@ -17,6 +17,14 @@ from erpnext_ua.ua_fiscal.payment import (
 	fiscal_payform_name,
 	resolve_payment_method,
 )
+from erpnext_ua.ua_pos.accounting import (
+	create_manual_cash_movement,
+	create_shift_discrepancy_movement,
+	make_sales_invoice,
+	payment_methods_for_desk,
+	profile_payment_modes,
+	validate_desk_runtime,
+)
 from erpnext_ua.ua_pos.employee_barcode import is_valid_employee_barcode
 from erpnext_ua.ua_pos.services.common import (
 	SESSION_TTL,
@@ -82,7 +90,7 @@ def list_cash_desks() -> list[dict]:
 	return frappe.get_all(
 		"POS Cash Desk",
 		filters={"status": "Active"},
-		fields=["name", "desk_name", "company", "warehouse", "prro_cash_register"],
+		fields=["name", "desk_name", "company", "warehouse", "pos_profile", "prro_cash_register"],
 		order_by="desk_name asc, name asc",
 		limit_page_length=200,
 	)
@@ -97,6 +105,7 @@ def login_by_barcode(cash_desk: str, barcode: str, device_token: str | None = No
 		frappe.throw(_("Cash desk and employee barcode are required"))
 	if frappe.db.get_value("POS Cash Desk", cash_desk, "status") != "Active":
 		frappe.throw("Cash desk is inactive")
+	validate_desk_runtime(frappe.get_doc("POS Cash Desk", cash_desk))
 	employee = None
 	if is_valid_employee_barcode(barcode):
 		employee = frappe.db.get_value("Employee", {"ua_pos_barcode": barcode}, "name")
@@ -139,7 +148,18 @@ def session_state(pos_session_token: str) -> dict:
 	desk = frappe.db.get_value(
 		"POS Cash Desk",
 		session["cash_desk"],
-		["company", "warehouse", "default_customer", "terminal", "prro_cash_register", "receipt_printer"],
+		[
+			"name",
+			"company",
+			"warehouse",
+			"default_customer",
+			"pos_profile",
+			"cash_account",
+			"cash_transfer_account",
+			"terminal",
+			"prro_cash_register",
+			"receipt_printer",
+		],
 		as_dict=True,
 	) or {}
 	employee_name = frappe.db.get_value("Employee", session["employee"], "employee_name")
@@ -155,7 +175,7 @@ def session_state(pos_session_token: str) -> dict:
 		"employee_name": employee_name or session["employee"],
 		"shift": shift,
 		"desk": desk,
-		"payment_methods": configured_payment_methods(),
+		"payment_methods": payment_methods_for_desk(desk, configured_payment_methods()),
 		"unfinished_orders": unfinished,
 	}
 
@@ -218,6 +238,7 @@ def cash_operation(
 	amount: float,
 	idem_key: str,
 	notes: str = "",
+	expense_account: str | None = None,
 ) -> dict:
 	session = get_session(pos_session_token)
 	shift = _require_shift(session)
@@ -238,9 +259,10 @@ def cash_operation(
 		return frappe.get_doc("POS Cash Movement", existing).as_dict()
 	if allowed[movement_type] == "Out" and amount > _cash_balance(shift) + 0.001:
 		frappe.throw(_("У касі недостатньо готівки для цієї операції"))
-	doc = frappe.get_doc(
-		{
-			"doctype": "POS Cash Movement",
+	desk = frappe.get_doc("POS Cash Desk", session["cash_desk"])
+	doc = create_manual_cash_movement(
+		desk=desk,
+		movement_data={
 			"cash_desk": session["cash_desk"],
 			"operational_shift": shift,
 			"employee": session["employee"],
@@ -251,10 +273,9 @@ def cash_operation(
 			"is_cash_drawer": 1,
 			"idem_key": idem_key,
 			"notes": (notes or "").strip(),
-		}
-	).insert(ignore_permissions=True)
-	doc.submit()
-	desk = frappe.get_doc("POS Cash Desk", session["cash_desk"])
+		},
+		expense_account=expense_account,
+	)
 	if desk.prro_cash_register:
 		register = frappe.get_doc("PRRO Cash Register", desk.prro_cash_register)
 		if register.current_shift:
@@ -297,7 +318,17 @@ def shift_report(pos_session_token: str) -> dict:
 	movements = frappe.get_all(
 		"POS Cash Movement",
 		filters={"operational_shift": shift, "docstatus": 1},
-		fields=["name", "direction", "movement_type", "amount", "currency", "notes", "creation"],
+		fields=[
+			"name",
+			"direction",
+			"movement_type",
+			"amount",
+			"currency",
+			"counterparty_account",
+			"journal_entry",
+			"notes",
+			"creation",
+		],
 		order_by="creation",
 	)
 	payment_totals = []
@@ -814,6 +845,15 @@ def close_shift_confirm(pos_session_token: str, denominations, idem_key: str, co
 	doc.close_idem_key = idem_key
 	doc.closed_by = frappe.session.user
 	doc.closed_at = frappe.utils.now_datetime()
+	if discrepancy:
+		create_shift_discrepancy_movement(
+			desk=frappe.get_doc("POS Cash Desk", session["cash_desk"]),
+			shift=doc,
+			employee=session["employee"],
+			discrepancy=discrepancy,
+			comment=comment,
+			idem_key=idem_key,
+		)
 	doc.save(ignore_permissions=True)
 	audit("shift_close", session, (doc.doctype, doc.name), {"expected": expected, "counted": counted})
 	frappe.db.commit()
@@ -1297,13 +1337,18 @@ def create_draft_invoice(pos_session_token: str, order: str) -> dict:
 	for row in doc.items:
 		gross = frappe.utils.flt(row.qty) * frappe.utils.flt(row.rate)
 		discount_percentage = frappe.utils.flt(row.discount_amount) * 100 / gross if gross else 0
+		net_rate = (
+			(gross - frappe.utils.flt(row.discount_amount)) / frappe.utils.flt(row.qty)
+			if frappe.utils.flt(row.qty)
+			else 0
+		)
 		invoice_items.append(
 			{
 				"item_code": row.item_code,
 				"qty": row.qty,
 				"uom": row.uom,
 				"price_list_rate": row.rate,
-				"rate": row.rate,
+				"rate": net_rate,
 				"discount_percentage": discount_percentage,
 				"warehouse": row.warehouse,
 			}
@@ -1320,6 +1365,8 @@ def create_draft_invoice(pos_session_token: str, order: str) -> dict:
 			"ua_pos_order": doc.name,
 			"ua_pos_desk": desk.name,
 			"ua_pos_shift": doc.operational_shift,
+			"ua_pos_employee": doc.employee,
+			"pos_profile": desk.pos_profile,
 			"remarks": _("Створено з вікна касира {0}. Товар не видано, склад не списано.").format(doc.name),
 			"items": invoice_items,
 		}
@@ -1335,46 +1382,7 @@ def create_draft_invoice(pos_session_token: str, order: str) -> dict:
 
 
 def _post_sales_invoice(order, desk):
-	is_return = order.order_type == "Return"
-	original_invoice = frappe.db.get_value("POS Order", order.return_against, "sales_invoice") if is_return else None
-	if is_return and not original_invoice:
-		frappe.throw(_("Первинний чек не має проведеного Sales Invoice"))
-	si = frappe.get_doc(
-		{
-			"doctype": "Sales Invoice",
-			"company": desk.company,
-			"customer": order.customer,
-			"is_pos": 1,
-			"update_stock": 1,
-			"is_return": 1 if is_return else 0,
-			"return_against": original_invoice,
-			"set_warehouse": desk.warehouse,
-			"ua_pos_order": order.name,
-			"ua_pos_desk": desk.name,
-			"ua_pos_shift": order.operational_shift,
-			"items": [
-				{
-					"item_code": row.item_code,
-					"qty": -row.qty if is_return else row.qty,
-					"uom": row.uom,
-					"rate": row.rate,
-					"warehouse": row.warehouse,
-					"batch_no": row.batch_no,
-					"serial_no": row.serial_no,
-				}
-				for row in order.items
-			],
-			"payments": [
-				{"mode_of_payment": row.mode_of_payment, "amount": -row.amount if is_return else row.amount}
-				for row in order.payments_plan
-				if row.status == "Confirmed"
-			],
-		}
-	)
-	si.set_missing_values()
-	si.insert(ignore_permissions=True)
-	si.submit()
-	return si
+	return make_sales_invoice(order, desk)
 
 
 def _cash_movements(order, session):
@@ -1838,6 +1846,7 @@ def checkout_start(pos_session_token: str, order: str, payments, idem_key: str) 
 	if not payment_rows:
 		frappe.throw(_("Вкажіть спосіб оплати"))
 	desk = frappe.get_doc("POS Cash Desk", doc.cash_desk)
+	allowed_payment_modes = profile_payment_modes(desk.pos_profile)
 	return_methods = {}
 	if doc.order_type == "Return":
 		original = frappe.get_doc("POS Order", doc.return_against)
@@ -1875,6 +1884,12 @@ def checkout_start(pos_session_token: str, order: str, payments, idem_key: str) 
 				"currency": method["currency"],
 			}
 		)
+		if method["mode_of_payment"] not in allowed_payment_modes:
+			frappe.throw(
+				_("Спосіб оплати {0} не дозволений у POS Profile {1}").format(
+					method["mode_of_payment"], desk.pos_profile
+				)
+			)
 		if method["requires_terminal"] and not desk.terminal:
 			frappe.throw(_("Для способу оплати {0} потрібен інтегрований платіжний термінал").format(method["payment_means"]))
 	if abs(sum(frappe.utils.flt(row.get("amount")) for row in payment_rows) - doc.grand_total) > 0.01:
