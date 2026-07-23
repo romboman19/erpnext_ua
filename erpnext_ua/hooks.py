@@ -71,6 +71,9 @@ doc_events = {
     "Sales Invoice": {
         "on_submit": "erpnext_ua.ua_fiscal.sales_invoice.on_submit",
     },
+	"Employee": {
+		"before_validate": "erpnext_ua.ua_pos.employee_barcode.assign_employee_barcode",
+	},
 	"Purchase Receipt": {
 		"before_validate": "erpnext_ua.ua_receiving.pricing.apply_supplier_price_vat",
 		"before_submit": "erpnext_ua.ua_receiving.service.validate_purchase_receipt",
