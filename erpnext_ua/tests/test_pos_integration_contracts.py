@@ -47,6 +47,21 @@ class TestPOSIntegrationContracts(unittest.TestCase):
         self.assertNotIn("POS-TEST-CASHIER", source)
         self.assertNotIn("Тестовий касир", source)
         self.assertIn(".ua-pos-login-card h1{font-size:27px;margin:32px 0 6px;color:var(--ink)}", source)
+        self.assertIn(
+            ".ua-pos input,.ua-pos select{color:#101828!important;"
+            "-webkit-text-fill-color:#101828!important;caret-color:#101828}",
+            source,
+        )
+        self.assertIn(
+            ".ua-pos input::placeholder{color:#667085!important;"
+            "-webkit-text-fill-color:#667085!important;opacity:1}",
+            source,
+        )
+        self.assertIn(
+            ".ua-pos-login-desk:disabled{color:#101828!important;"
+            "-webkit-text-fill-color:#101828!important;opacity:1}",
+            source,
+        )
 
     def test_pos_workspace_is_visible_and_opens_the_cashier_page(self):
         workspace = json.loads(
