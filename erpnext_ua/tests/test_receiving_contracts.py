@@ -50,6 +50,18 @@ class TestReceivingContracts(unittest.TestCase):
 		self.assertNotIn("invoice.submit()", service)
 		self.assertIn("invoice.ua_add_vat_20_to_prices", service)
 
+	def test_vat_checkbox_keeps_the_standard_price_field_editable(self):
+		javascript = (APP / "public" / "js" / "purchase_vat.js").read_text(
+			encoding="utf-8"
+		)
+		self.assertIn(
+			'grid.update_docfield_property("rate", "read_only", 0)',
+			javascript,
+		)
+		self.assertIn("rate: update_entered_price", javascript)
+		self.assertIn("await set_row_price(frm, row, row.rate)", javascript)
+		self.assertIn("без ПДВ у колонці «Ціна»", javascript)
+
 	def test_receipt_completion_requires_submit_and_repairs_warehouse(self):
 		javascript = (APP / "public" / "js" / "price_tag_source.js").read_text(
 			encoding="utf-8"

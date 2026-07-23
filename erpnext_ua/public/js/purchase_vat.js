@@ -48,8 +48,8 @@
 		const enabled = is_enabled(frm);
 		const grid = frm.fields_dict.items && frm.fields_dict.items.grid;
 		if (!grid) return;
-		grid.update_docfield_property("ua_price_without_vat", "hidden", enabled ? 0 : 1);
-		grid.update_docfield_property("rate", "read_only", enabled ? 1 : 0);
+		grid.update_docfield_property("ua_price_without_vat", "hidden", 1);
+		grid.update_docfield_property("rate", "read_only", 0);
 		grid.update_docfield_property("price_list_rate", "read_only", enabled ? 1 : 0);
 		frm.refresh_field("items");
 	}
@@ -64,7 +64,7 @@
 				await set_row_price(frm, row, netPrice);
 			}
 			frappe.show_alert({
-				message: __("Вводьте ціну постачальника у колонці «Ціна без ПДВ»; Rate буде +20%."),
+				message: __("Вводьте ціну постачальника без ПДВ у колонці «Ціна»; система додасть 20%."),
 				indicator: "blue",
 			});
 		} else {
@@ -81,6 +81,13 @@
 		}
 		update_grid(frm);
 		frm.dirty();
+	}
+
+	async function update_entered_price(frm, cdt, cdn) {
+		if (!is_enabled(frm)) return;
+		const row = locals[cdt][cdn];
+		if (!row || updatingRows.has(row.name)) return;
+		await set_row_price(frm, row, row.rate);
 	}
 
 	async function update_net_price(frm, cdt, cdn) {
@@ -108,6 +115,7 @@
 
 	for (const itemDoctype of ["Purchase Receipt Item", "Purchase Invoice Item"]) {
 		frappe.ui.form.on(itemDoctype, {
+			rate: update_entered_price,
 			ua_price_without_vat: update_net_price,
 			item_code: capture_loaded_rate,
 		});
