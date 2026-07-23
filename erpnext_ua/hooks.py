@@ -63,6 +63,10 @@ doctype_js = {
 	"Item": "public/js/price_tag_source.js",
 }
 
+doctype_list_js = {
+	"Purchase Invoice": "public/js/purchase_invoice_payment_list.js",
+}
+
 doc_events = {
     "Sales Invoice": {
         "on_submit": "erpnext_ua.ua_fiscal.sales_invoice.on_submit",
