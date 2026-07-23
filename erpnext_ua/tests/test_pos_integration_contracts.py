@@ -19,7 +19,11 @@ class TestPOSIntegrationContracts(unittest.TestCase):
         self.assertIn("def ensure_pos_workspace():", install_source)
         self.assertIn('"workspace_sidebar", "ua_pos_workspace.json"', install_source)
         self.assertIn('"desktop_icon", "ua_pos_workspace.json"', install_source)
-        self.assertIn("import_file_by_path(path, force=True)", install_source)
+        self.assertIn("_sync_standard_document(path)", install_source)
+        workspace_sync = install_source.split("def ensure_pos_workspace():", 1)[1].split(
+            "def _sync_standard_document", 1
+        )[0]
+        self.assertNotIn("import_file_by_path", workspace_sync)
 
         modules_hook = "erpnext_ua.install.ensure_app_modules"
         workspace_hook = "erpnext_ua.install.ensure_pos_workspace"
@@ -94,6 +98,18 @@ class TestPOSIntegrationContracts(unittest.TestCase):
         self.assertTrue(workspace["public"])
         self.assertFalse(workspace["is_hidden"])
         self.assertEqual(workspace["name"], "UA POS Workspace")
+        self.assertEqual(workspace["label"], "Каса")
+        self.assertEqual(workspace["title"], "UA POS Workspace")
+        self.assertEqual(
+            {row["role"] for row in workspace["roles"]},
+            {
+                "POS Cashier",
+                "POS Senior Cashier",
+                "POS Manager",
+                "POS Administrator",
+                "System Manager",
+            },
+        )
         self.assertTrue(
             any(
                 link.get("link_type") == "Page"
@@ -101,18 +117,50 @@ class TestPOSIntegrationContracts(unittest.TestCase):
                 for link in workspace["links"]
             )
         )
+        linked_doctypes = {
+            link.get("link_to")
+            for link in workspace["links"]
+            if link.get("link_type") == "DocType"
+        }
+        self.assertTrue(
+            {
+                "POS Cash Desk",
+                "Employee Cash Desk Access",
+                "POS Profile",
+                "Account",
+                "Mode of Payment",
+                "PB POS Terminal",
+                "POS Printer",
+                "PRRO Cash Register",
+                "UA KEP Key",
+            }.issubset(linked_doctypes)
+        )
 
         icon = json.loads(
             (APP / "desktop_icon" / "ua_pos_workspace.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(icon["parent_icon"], "ERPNext Ukraine")
+        self.assertEqual(icon["label"], "Каса")
+        self.assertEqual(icon["parent_icon"], "")
         self.assertEqual(icon["link_to"], workspace["name"])
         self.assertFalse(icon["hidden"])
+        self.assertEqual(
+            {row["role"] for row in icon["roles"]},
+            {row["role"] for row in workspace["roles"]},
+        )
 
         sidebar = json.loads(
             (APP / "workspace_sidebar" / "ua_pos_workspace.json").read_text(encoding="utf-8")
         )
         self.assertEqual(sidebar["name"], workspace["name"])
+        self.assertEqual(sidebar["title"], "Каса")
+
+    def test_upgrade_creates_cashier_only_role_profile(self):
+        install_source = (APP / "install.py").read_text(encoding="utf-8")
+
+        self.assertIn('POS_CASHIER_ROLE_PROFILE = "UA POS — лише каса"', install_source)
+        self.assertIn("def ensure_pos_role_profile():", install_source)
+        self.assertIn('profile.append("roles", {"role": "POS Cashier"})', install_source)
+        self.assertIn("ensure_pos_role_profile()", install_source)
 
 
 if __name__ == "__main__":

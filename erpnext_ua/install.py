@@ -1,4 +1,5 @@
 import hashlib
+import json
 import re
 import uuid
 
@@ -53,6 +54,7 @@ def ensure_tax_parameters():
 
 
 POS_ROLES = ["POS Cashier", "POS Senior Cashier", "POS Manager", "POS Administrator", "PRRO Operator"]
+POS_CASHIER_ROLE_PROFILE = "UA POS — лише каса"
 APP_MODULES = ("UA FOP", "UA Fiscal", "UA POS", "UA Accounting", "UA Price Tags", "UA Receiving")
 
 
@@ -425,7 +427,7 @@ def ensure_pos_workspace():
 	if not frappe.db.table_exists("Workspace"):
 		return
 	ensure_app_modules()
-	from frappe.modules.import_file import import_file_by_path
+	ensure_pos_roles()
 
 	paths = (
 		frappe.get_app_path(
@@ -435,8 +437,58 @@ def ensure_pos_workspace():
 		frappe.get_app_path("erpnext_ua", "desktop_icon", "ua_pos_workspace.json"),
 	)
 	for path in paths:
-		import_file_by_path(path, force=True)
+		_sync_standard_document(path)
 	frappe.db.commit()
+
+
+def _sync_standard_document(path):
+	with open(path, encoding="utf-8") as source_file:
+		values = json.load(source_file)
+	doctype = values["doctype"]
+	name = values["name"]
+	if frappe.db.exists(doctype, name):
+		doc = frappe.get_doc(doctype, name)
+		table_fields = {field.fieldname for field in doc.meta.get_table_fields()}
+		doc.update(
+			{
+				key: value
+				for key, value in values.items()
+				if key not in table_fields
+				and key not in {"creation", "modified", "modified_by", "owner"}
+			}
+		)
+		for fieldname in table_fields:
+			if fieldname in values:
+				doc.set(fieldname, [])
+				for row in values[fieldname]:
+					doc.append(fieldname, row)
+	else:
+		doc = frappe.get_doc(values)
+		table_fields = {field.fieldname for field in doc.meta.get_table_fields()}
+	was_in_import = frappe.flags.in_import
+	was_in_migrate = frappe.flags.in_migrate
+	frappe.flags.in_import = True
+	frappe.flags.in_migrate = True
+	try:
+		doc.flags.ignore_links = True
+		doc.flags.ignore_mandatory = True
+		doc.flags.ignore_version = True
+		if doc.is_new():
+			doc.insert(ignore_permissions=True)
+		else:
+			doc.save(ignore_permissions=True)
+		fieldnames = {field.fieldname for field in doc.meta.fields}
+		scalar_values = {
+			key: value
+			for key, value in values.items()
+			if key in fieldnames and key not in table_fields
+		}
+		if scalar_values:
+			frappe.db.set_value(doctype, name, scalar_values, update_modified=False)
+		doc.clear_cache()
+	finally:
+		frappe.flags.in_import = was_in_import
+		frappe.flags.in_migrate = was_in_migrate
 
 
 def ensure_pos_page():
@@ -464,12 +516,31 @@ def ensure_pos_page():
 	frappe.db.commit()
 
 
-def ensure_pos_setup():
-	"""Ідемпотентно створює ролі та поля інтеграції POS без змін ERPNext core."""
+def ensure_pos_roles():
 	for role in POS_ROLES:
 		if not frappe.db.exists("Role", role):
 			frappe.get_doc({"doctype": "Role", "role_name": role}).insert(ignore_permissions=True)
 
+
+def ensure_pos_role_profile():
+	if not frappe.db.table_exists("Role Profile"):
+		return
+	if frappe.db.exists("Role Profile", POS_CASHIER_ROLE_PROFILE):
+		profile = frappe.get_doc("Role Profile", POS_CASHIER_ROLE_PROFILE)
+	else:
+		profile = frappe.new_doc("Role Profile")
+		profile.role_profile = POS_CASHIER_ROLE_PROFILE
+	if {row.role for row in profile.roles} == {"POS Cashier"}:
+		return
+	profile.set("roles", [])
+	profile.append("roles", {"role": "POS Cashier"})
+	if profile.is_new():
+		profile.insert(ignore_permissions=True)
+	else:
+		profile.save(ignore_permissions=True)
+
+
+def ensure_pos_custom_fields():
 	create_custom_fields(
 		{
 			"Employee": [
@@ -552,6 +623,13 @@ def ensure_pos_setup():
 		},
 		update=True,
 	)
+
+
+def ensure_pos_setup():
+	"""Ідемпотентно створює ролі та поля інтеграції POS без змін ERPNext core."""
+	ensure_pos_roles()
+	ensure_pos_role_profile()
+	ensure_pos_custom_fields()
 	from erpnext_ua.ua_pos.employee_barcode import backfill_employee_barcodes
 	from erpnext_ua.ua_pos.setup import backfill_cash_desk_bridge
 
