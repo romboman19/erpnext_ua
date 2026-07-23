@@ -18,6 +18,12 @@ class POSCashMovement(Document):
 	def validate(self):
 		if frappe.utils.flt(self.amount) <= 0:
 			frappe.throw(_("Сума касового руху має бути більшою за нуль"))
+		counted = 0
+		for row in self.denomination_counts or []:
+			row.subtotal = frappe.utils.flt(row.denomination) * int(row.qty or 0)
+			counted += row.subtotal
+		if self.denomination_counts and abs(frappe.utils.flt(self.amount) - counted) > 0.01:
+			frappe.throw(_("Сума покупюрного перерахунку має дорівнювати сумі касового руху"))
 
 	def before_submit(self):
 		if self.movement_type not in ACCOUNTED_MOVEMENT_TYPES:

@@ -88,6 +88,50 @@ class TestPOSCashDeskBridgeContracts(unittest.TestCase):
 		self.assertIn('root_type: "Expense"', source)
 		self.assertIn("expense_account: values.expense_account || null", source)
 
+	def test_visual_stock_browser_and_f6_payment_are_wired(self):
+		source = (
+			APP / "ua_pos" / "page" / "ua_pos" / "ua_pos.js"
+		).read_text(encoding="utf-8")
+		api = (APP / "ua_pos" / "api.py").read_text(encoding="utf-8")
+
+		self.assertIn('api("stock_categories"', source)
+		self.assertIn('api("stock_catalog"', source)
+		self.assertIn("ua-pos-category-tree", source)
+		self.assertIn("ua-pos-product-detail", source)
+		self.assertIn("F6: () =>", source)
+		self.assertIn('paymentDialog("cash")', source)
+		self.assertNotIn("F6: discountDialog", source)
+		self.assertIn("def stock_categories(", api)
+		self.assertIn("def stock_catalog(", api)
+		self.assertIn("i.description", api)
+		self.assertIn("i.item_group", api)
+
+	def test_cash_desk_print_controls_and_denomination_table_are_persistent(self):
+		desk = json.loads(
+			(
+				APP
+				/ "ua_pos"
+				/ "doctype"
+				/ "pos_cash_desk"
+				/ "pos_cash_desk.json"
+			).read_text(encoding="utf-8")
+		)
+		movement = json.loads(
+			(
+				APP
+				/ "ua_pos"
+				/ "doctype"
+				/ "pos_cash_movement"
+				/ "pos_cash_movement.json"
+			).read_text(encoding="utf-8")
+		)
+		desk_fields = {row["fieldname"]: row for row in desk["fields"]}
+		movement_fields = {row["fieldname"]: row for row in movement["fields"]}
+
+		self.assertIn("require_receipt_print", desk_fields)
+		self.assertIn("print_cash_documents", desk_fields)
+		self.assertEqual(movement_fields["denomination_counts"]["options"], "POS Denomination Count")
+
 
 if __name__ == "__main__":
 	unittest.main()

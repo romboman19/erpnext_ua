@@ -159,6 +159,8 @@ def session_state(pos_session_token: str) -> dict:
 			"terminal",
 			"prro_cash_register",
 			"receipt_printer",
+			"require_receipt_print",
+			"print_cash_documents",
 		],
 		as_dict=True,
 	) or {}
@@ -197,38 +199,102 @@ def unfinished_orders(pos_session_token: str) -> list[dict]:
 
 
 @frappe.whitelist()
-def stock_search(pos_session_token: str, query: str, limit: int = 30) -> list[dict]:
+def stock_categories(pos_session_token: str) -> list[dict]:
+	"""Return the Item Group hierarchy used by the visual stock browser."""
+	get_session(pos_session_token)
+	return frappe.get_all(
+		"Item Group",
+		fields=["name", "item_group_name", "parent_item_group", "is_group", "lft", "rgt"],
+		order_by="lft asc",
+		limit=2000,
+	)
+
+
+def _stock_catalog_filters(query: str, item_group: str) -> tuple[list[str], list]:
+	conditions = ["i.disabled=0", "i.is_sales_item=1"]
+	values = []
+	if query:
+		like = f"%{query}%"
+		conditions.append(
+			"""(i.name like %s or i.item_name like %s or i.description like %s or exists(
+				select 1 from `tabItem Barcode` ib2 where ib2.parent=i.name and ib2.barcode like %s
+			))"""
+		)
+		values.extend((like, like, like, like))
+	if item_group:
+		group = frappe.db.get_value("Item Group", item_group, ["lft", "rgt"], as_dict=True)
+		if not group:
+			frappe.throw(_("Категорію товарів не знайдено"))
+		conditions.append(
+			"""exists(
+				select 1 from `tabItem Group` ig
+				where ig.name=i.item_group and ig.lft >= %s and ig.rgt <= %s
+			)"""
+		)
+		values.extend((group.lft, group.rgt))
+	return conditions, values
+
+
+def _selling_rate(desk, item_code: str) -> float:
+	price_list = frappe.get_cached_value("POS Profile", desk.pos_profile, "selling_price_list")
+	filters = {"item_code": item_code, "selling": 1}
+	if price_list:
+		filters["price_list"] = price_list
+	return frappe.utils.flt(
+		frappe.db.get_value(
+			"Item Price",
+			filters,
+			"price_list_rate",
+			order_by="valid_from desc, modified desc",
+		)
+		or 0
+	)
+
+
+@frappe.whitelist()
+def stock_catalog(
+	pos_session_token: str,
+	query: str = "",
+	item_group: str = "",
+	offset: int = 0,
+	limit: int = 24,
+) -> dict:
+	"""Browse saleable items by Item Group, including stock, image and description."""
 	session = get_session(pos_session_token)
 	desk = frappe.get_doc("POS Cash Desk", session["cash_desk"])
 	query = (query or "").strip()
-	if len(query) < 2:
-		frappe.throw(_("Введіть щонайменше два символи для пошуку"))
-	like = f"%{query}%"
+	item_group = (item_group or "").strip()
+	offset = min(max(int(offset or 0), 0), 10000)
+	limit = min(max(int(limit or 24), 1), 60)
+	conditions, values = _stock_catalog_filters(query, item_group)
+	values = [desk.warehouse, *values, query, limit + 1, offset]
 	rows = frappe.db.sql(
-		"""select i.name as item_code, i.item_name, i.stock_uom as uom,
-			i.image, coalesce(b.actual_qty, 0) as actual_qty,
+		f"""select i.name as item_code, i.item_name, i.item_group, i.brand,
+			i.stock_uom as uom, i.image, i.description, coalesce(b.actual_qty, 0) as actual_qty,
 			(select ib.barcode from `tabItem Barcode` ib where ib.parent=i.name order by ib.idx limit 1) as barcode
 		from `tabItem` i
 		left join `tabBin` b on b.item_code=i.name and b.warehouse=%s
-		where i.disabled=0 and (i.name like %s or i.item_name like %s or exists(
-			select 1 from `tabItem Barcode` ib2 where ib2.parent=i.name and ib2.barcode like %s
-		))
-		order by case when i.name=%s then 0 else 1 end, i.item_name
-		limit %s""",
-		(desk.warehouse, like, like, like, query, min(max(int(limit or 30), 1), 100)),
+		where {" and ".join(conditions)}
+		order by case when i.name=%s then 0 else 1 end, i.item_name, i.name
+		limit %s offset %s""",
+		values,
 		as_dict=True,
 	)
+	has_more = len(rows) > limit
+	rows = rows[:limit]
 	for row in rows:
-		row["rate"] = frappe.utils.flt(
-			frappe.db.get_value(
-				"Item Price",
-				{"item_code": row.item_code, "selling": 1},
-				"price_list_rate",
-				order_by="valid_from desc, modified desc",
-			)
-			or 0
-		)
-	return rows
+		row["description"] = frappe.utils.strip_html(row.description or "").strip()
+		row["rate"] = _selling_rate(desk, row.item_code)
+	return {"items": rows, "has_more": has_more, "offset": offset, "limit": limit}
+
+
+@frappe.whitelist()
+def stock_search(pos_session_token: str, query: str, limit: int = 30) -> list[dict]:
+	"""Compatibility endpoint for integrations that still use the former table search."""
+	query = (query or "").strip()
+	if len(query) < 2:
+		frappe.throw(_("Введіть щонайменше два символи для пошуку"))
+	return stock_catalog(pos_session_token, query=query, limit=limit)["items"]
 
 
 @frappe.whitelist()
@@ -239,6 +305,7 @@ def cash_operation(
 	idem_key: str,
 	notes: str = "",
 	expense_account: str | None = None,
+	denominations=None,
 ) -> dict:
 	session = get_session(pos_session_token)
 	shift = _require_shift(session)
@@ -249,17 +316,32 @@ def cash_operation(
 	}
 	if movement_type not in allowed:
 		frappe.throw(_("Непідтримувана касова операція"))
-	if movement_type in {"Expense", "Incassation Out"} and session["access_role"] not in {"Senior Cashier", "Manager"}:
-		frappe.throw(_("Ця касова операція потребує ролі старшого касира або менеджера"), frappe.PermissionError)
+	if movement_type in {"Expense", "Incassation Out"} and session["access_role"] not in {
+		"Senior Cashier",
+		"Manager",
+	}:
+		frappe.throw(
+			_("Ця касова операція потребує ролі старшого касира або менеджера"),
+			frappe.PermissionError,
+		)
 	amount = frappe.utils.flt(amount, 2)
 	if amount <= 0:
 		frappe.throw(_("Сума має бути більшою за нуль"))
+	denomination_rows = _validated_denominations(
+		denominations, context=_denomination_context(movement_type)
+	)
+	if denomination_rows and abs(_count_total(denomination_rows) - amount) > 0.01:
+		frappe.throw(_("Сума покупюрного перерахунку має дорівнювати сумі операції"))
+	desk = frappe.get_doc("POS Cash Desk", session["cash_desk"])
 	existing = frappe.db.get_value("POS Cash Movement", {"idem_key": idem_key}, "name")
 	if existing:
-		return frappe.get_doc("POS Cash Movement", existing).as_dict()
+		doc = frappe.get_doc("POS Cash Movement", existing)
+		print_result = _queue_cash_document(
+			desk, doc.doctype, doc.name, doc.movement_type, idem_key=idem_key
+		)
+		return {**doc.as_dict(), "cash_balance": _cash_balance(shift), **print_result}
 	if allowed[movement_type] == "Out" and amount > _cash_balance(shift) + 0.001:
 		frappe.throw(_("У касі недостатньо готівки для цієї операції"))
-	desk = frappe.get_doc("POS Cash Desk", session["cash_desk"])
 	doc = create_manual_cash_movement(
 		desk=desk,
 		movement_data={
@@ -273,6 +355,7 @@ def cash_operation(
 			"is_cash_drawer": 1,
 			"idem_key": idem_key,
 			"notes": (notes or "").strip(),
+			"denomination_counts": denomination_rows,
 		},
 		expense_account=expense_account,
 	)
@@ -299,8 +382,11 @@ def cash_operation(
 				doc.notes = f"{doc.notes or ''}\nПРРО pending: {str(exc)[:200]}".strip()
 				doc.db_set("notes", doc.notes, update_modified=False)
 	audit("cash_operation", session, (doc.doctype, doc.name), {"type": movement_type, "amount": amount})
+	print_result = _queue_cash_document(
+		desk, doc.doctype, doc.name, movement_type, idem_key=idem_key
+	)
 	frappe.db.commit()
-	return {**doc.as_dict(), "cash_balance": _cash_balance(shift)}
+	return {**doc.as_dict(), "cash_balance": _cash_balance(shift), **print_result}
 
 
 @frappe.whitelist()
@@ -748,13 +834,83 @@ def _count_total(rows: list[dict]) -> float:
 	return sum(frappe.utils.flt(row.get("denomination")) * int(row.get("qty") or 0) for row in rows)
 
 
+def _denomination_context(movement_type: str) -> str:
+	return {
+		"Cash In": "Transfer",
+		"Expense": "Expense",
+		"Incassation Out": "Incassation",
+	}.get(movement_type, "Transfer")
+
+
+def _validated_denominations(value, *, context: str) -> list[dict]:
+	rows = []
+	for row in parse_rows(value):
+		denomination = frappe.utils.flt(row.get("denomination"))
+		qty = int(row.get("qty") or 0)
+		if denomination <= 0 or qty < 0:
+			frappe.throw(_("Номінал має бути додатним, а кількість — не від’ємною"))
+		if not qty:
+			continue
+		rows.append(
+			{
+				"context": context,
+				"currency": row.get("currency") or "UAH",
+				"denomination": denomination,
+				"qty": qty,
+				"subtotal": denomination * qty,
+			}
+		)
+	return rows
+
+
+def _queue_cash_document(
+	desk,
+	reference_doctype: str,
+	reference_name: str,
+	operation: str,
+	*,
+	idem_key: str,
+) -> dict:
+	if not desk.print_cash_documents:
+		return {"print_status": "Disabled"}
+	if not desk.receipt_printer:
+		return {
+			"print_status": "Not Configured",
+			"print_error": _("Для каси не налаштовано чековий принтер"),
+		}
+	from erpnext_ua.ua_pos.print_service import queue_cash_document
+
+	try:
+		job = queue_cash_document(
+			desk.name,
+			reference_doctype,
+			reference_name,
+			operation,
+			idem_key=idem_key,
+		)
+	except Exception as exc:
+		frappe.log_error(frappe.get_traceback(), f"POS cash document print {reference_name}")
+		return {"print_status": "Error", "print_error": str(exc)[:500]}
+	return {
+		"print_status": job.status if job else "Disabled",
+		"print_job": job.name if job else None,
+	}
+
+
 @frappe.whitelist()
 def open_shift(pos_session_token: str, denominations, idem_key: str) -> dict:
 	session = get_session(pos_session_token)
+	desk = frappe.get_doc("POS Cash Desk", session["cash_desk"])
 	existing = frappe.db.get_value("POS Operational Shift", {"idem_key": idem_key}, "name")
 	if existing:
-		return frappe.get_doc("POS Operational Shift", existing).as_dict()
-	rows = parse_rows(denominations)
+		doc = frappe.get_doc("POS Operational Shift", existing)
+		return {
+			**doc.as_dict(),
+			**_queue_cash_document(
+				desk, doc.doctype, doc.name, "Shift Open", idem_key=idem_key
+			),
+		}
+	rows = _validated_denominations(denominations, context="Opening")
 	frappe.db.sql("select name from `tabPOS Cash Desk` where name=%s for update", session["cash_desk"])
 	if active_shift(session["cash_desk"], for_update=True):
 		frappe.throw("An operational shift is already open on this cash desk")
@@ -767,7 +923,7 @@ def open_shift(pos_session_token: str, denominations, idem_key: str) -> dict:
 			"opened_by": frappe.session.user,
 			"opened_at": frappe.utils.now_datetime(),
 			"idem_key": idem_key,
-			"opening_counts": [{**row, "context": "Opening"} for row in rows],
+			"opening_counts": rows,
 		}
 	).insert(ignore_permissions=True)
 	for currency in {row.get("currency") or "UAH" for row in rows}:
@@ -789,8 +945,11 @@ def open_shift(pos_session_token: str, denominations, idem_key: str) -> dict:
 				}
 			).insert(ignore_permissions=True).submit()
 	audit("shift_open", session, (doc.doctype, doc.name), {"opening": _count_total(rows)})
+	print_result = _queue_cash_document(
+		desk, doc.doctype, doc.name, "Shift Open", idem_key=idem_key
+	)
 	frappe.db.commit()
-	return doc.as_dict()
+	return {**doc.as_dict(), **print_result}
 
 
 def _expected_cash(shift: str) -> float:
@@ -820,14 +979,27 @@ def close_shift_begin(pos_session_token: str) -> dict:
 @frappe.whitelist()
 def close_shift_confirm(pos_session_token: str, denominations, idem_key: str, comment: str = "") -> dict:
 	session = get_session(pos_session_token)
+	desk = frappe.get_doc("POS Cash Desk", session["cash_desk"])
 	existing = frappe.db.get_value("POS Operational Shift", {"close_idem_key": idem_key}, "name")
 	if existing:
-		return frappe.get_doc("POS Operational Shift", existing).as_dict()
-	rows = parse_rows(denominations)
+		doc = frappe.get_doc("POS Operational Shift", existing)
+		return {
+			**doc.as_dict(),
+			**_queue_cash_document(
+				desk, doc.doctype, doc.name, "Shift Close", idem_key=idem_key
+			),
+		}
+	rows = _validated_denominations(denominations, context="Closing")
 	shift_name = active_shift(session["cash_desk"], for_update=True)
 	if not shift_name:
 		frappe.throw("No open shift")
-	if frappe.db.exists("POS Order", {"operational_shift": shift_name, "status": ("not in", ("Completed", "Invoice Draft", "Cancelled"))}):
+	if frappe.db.exists(
+		"POS Order",
+		{
+			"operational_shift": shift_name,
+			"status": ("not in", ("Completed", "Invoice Draft", "Cancelled")),
+		},
+	):
 		frappe.throw("Resolve unfinished POS orders before closing the shift")
 	doc = frappe.get_doc("POS Operational Shift", shift_name)
 	expected, counted = _expected_cash(shift_name), _count_total(rows)
@@ -837,7 +1009,7 @@ def close_shift_confirm(pos_session_token: str, denominations, idem_key: str, co
 	if discrepancy and session["access_role"] not in {"Senior Cashier", "Manager"}:
 		frappe.throw(_("Зміну з розбіжністю має закрити старший касир або менеджер"), frappe.PermissionError)
 	doc.status = "Closed"
-	doc.set("closing_counts", [{**row, "context": "Closing"} for row in rows])
+	doc.set("closing_counts", rows)
 	doc.expected_cash = expected
 	doc.counted_cash = counted
 	doc.discrepancy = discrepancy
@@ -847,7 +1019,7 @@ def close_shift_confirm(pos_session_token: str, denominations, idem_key: str, co
 	doc.closed_at = frappe.utils.now_datetime()
 	if discrepancy:
 		create_shift_discrepancy_movement(
-			desk=frappe.get_doc("POS Cash Desk", session["cash_desk"]),
+			desk=desk,
 			shift=doc,
 			employee=session["employee"],
 			discrepancy=discrepancy,
@@ -856,8 +1028,11 @@ def close_shift_confirm(pos_session_token: str, denominations, idem_key: str, co
 		)
 	doc.save(ignore_permissions=True)
 	audit("shift_close", session, (doc.doctype, doc.name), {"expected": expected, "counted": counted})
+	print_result = _queue_cash_document(
+		desk, doc.doctype, doc.name, "Shift Close", idem_key=idem_key
+	)
 	frappe.db.commit()
-	return doc.as_dict()
+	return {**doc.as_dict(), **print_result}
 
 
 @frappe.whitelist()
@@ -914,9 +1089,11 @@ def scan_item(pos_session_token: str, order: str, query: str, qty: float = 1) ->
 	if item.disabled:
 		frappe.throw(_("Товар вимкнено"))
 	desk = frappe.get_doc("POS Cash Desk", doc.cash_desk)
-	rate = frappe.db.get_value("Item Price", {"item_code": item_code, "selling": 1}, "price_list_rate") or 0
+	rate = _selling_rate(desk, item_code)
 	if frappe.utils.flt(rate) <= 0:
-		frappe.throw(_("Для товару {0} не задано ціну продажу").format(item_code))
+		frappe.throw(
+			_("Для товару {0} не задано ціну у прайс-листі каси").format(item_code)
+		)
 	for row in doc.items:
 		if row.item_code == item_code and not row.serial_no and not row.batch_no:
 			row.qty += qty
@@ -1751,9 +1928,20 @@ def _complete_paid_order(doc, desk, session) -> dict:
 
 
 def _queue_print_if_configured(doc):
-	"""Attach the immutable original receipt print job without affecting the sale transaction."""
+	"""Attach the required original receipt print job without repeating the sale."""
 	from erpnext_ua.ua_pos.print_service import queue_order_receipt
 
+	desk = frappe.get_doc("POS Cash Desk", doc.cash_desk)
+	if not desk.require_receipt_print:
+		return None
+	if not desk.receipt_printer:
+		message = _(
+			"Обов’язковий друк увімкнено, але для каси не налаштовано чековий принтер"
+		)
+		doc.status = "Completed Print Error"
+		doc.recovery_note = message
+		doc.save(ignore_permissions=True)
+		return None
 	try:
 		job = queue_order_receipt(doc, is_copy=False)
 	except Exception as exc:

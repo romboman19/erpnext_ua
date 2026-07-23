@@ -108,9 +108,24 @@ class TestCashDeskAccounting(unittest.TestCase):
 	def test_manual_cash_movements_submit_balanced_journal_entries(self):
 		from erpnext_ua.ua_pos.accounting import create_manual_cash_movement
 
+		cash_in_data = self._movement_data("Cash In", "In", 50, "cash-in")
+		cash_in_data["denomination_counts"] = [
+			{
+				"context": "Transfer",
+				"currency": "UAH",
+				"denomination": 20,
+				"qty": 2,
+			},
+			{
+				"context": "Transfer",
+				"currency": "UAH",
+				"denomination": 10,
+				"qty": 1,
+			},
+		]
 		cash_in = create_manual_cash_movement(
 			desk=self.desk,
-			movement_data=self._movement_data("Cash In", "In", 50, "cash-in"),
+			movement_data=cash_in_data,
 		)
 		expense = create_manual_cash_movement(
 			desk=self.desk,
@@ -120,6 +135,13 @@ class TestCashDeskAccounting(unittest.TestCase):
 
 		self.assertEqual(cash_in.docstatus, 1)
 		self.assertEqual(expense.docstatus, 1)
+		self.assertEqual(
+			[
+				(float(row.denomination), row.qty, float(row.subtotal))
+				for row in cash_in.denomination_counts
+			],
+			[(20, 2, 40), (10, 1, 10)],
+		)
 		self.assertEqual(cash_in.counterparty_account, self.transfer_account)
 		self.assertEqual(expense.counterparty_account, self.expense_account)
 		self._assert_journal_accounts(

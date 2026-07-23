@@ -114,7 +114,8 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
     .ua-pos-table-wrap{flex:1;overflow:auto;position:relative}.ua-pos-table{border-collapse:separate;border-spacing:0;width:100%;min-width:900px;table-layout:fixed;font-size:12px}.ua-pos-table th{position:sticky;top:0;z-index:2;background:#f2f4f7;color:#475467;text-align:left;padding:9px 10px;border-bottom:1px solid #d0d5dd;font-weight:700;white-space:nowrap}.ua-pos-table td{padding:9px 10px;border-bottom:1px solid #eaecf0;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}.ua-pos-table tbody tr:hover{background:#f8fbff}.ua-pos-table .num{text-align:right;font-variant-numeric:tabular-nums}.ua-pos-item-name{font-weight:700;color:#1d2939;max-width:320px}.ua-pos-item-code{font-size:10px;color:var(--muted);margin-top:2px}.ua-pos-qty{display:inline-flex;align-items:center;border:1px solid #d0d5dd;border-radius:7px;overflow:hidden}.ua-pos-qty button{width:26px;height:26px;border:0;background:#f9fafb;color:#344054}.ua-pos-qty span{min-width:38px;text-align:center;font-weight:700}.ua-pos-empty{position:absolute;inset:44px 0 0;display:grid;place-items:center;text-align:center;color:var(--muted)}.ua-pos-empty-icon{font-size:42px;opacity:.35}.ua-pos-empty strong{display:block;color:#475467;font-size:16px;margin:8px}.ua-pos-cart-footer{height:42px;border-top:1px solid var(--line);display:flex;align-items:center;gap:20px;padding:0 14px;background:#fbfcfe;color:var(--muted);font-size:11px}.ua-pos-cart-footer b{color:#344054}
     .ua-pos-summary{display:flex;flex-direction:column}.ua-pos-summary-head{padding:15px 16px;border-bottom:1px solid var(--line)}.ua-pos-summary-head span{font-size:11px;color:var(--muted)}.ua-pos-summary-head strong{display:block;font-size:15px;margin-top:3px}.ua-pos-order-badge{display:inline-flex!important;width:auto;margin-top:8px!important;padding:3px 7px;border-radius:5px;background:#f2f4f7;color:#475467!important;font-size:10px!important}.ua-pos-product-preview{display:none;align-items:center;gap:12px;min-height:112px;padding:12px 16px;border-bottom:1px solid var(--line);background:#fbfcfe}.ua-pos-product-preview img{width:88px;height:88px;border-radius:9px;border:1px solid var(--line);object-fit:contain;background:#fff}.ua-pos-product-preview strong{display:block;font-size:13px;line-height:1.25}.ua-pos-product-preview span{display:block;margin-top:5px;color:var(--muted);font-size:11px}.ua-pos-totals{padding:14px 16px}.ua-pos-total-row{display:flex;justify-content:space-between;align-items:center;margin:9px 0;color:#475467;font-size:13px}.ua-pos-total-row strong{color:#1d2939;font-variant-numeric:tabular-nums}.ua-pos-total-row.discount strong{color:var(--green)}.ua-pos-due{margin-top:auto;padding:18px 16px 16px;border-top:1px solid var(--line);background:#f8fafc}.ua-pos-due-label{font-size:12px;color:var(--muted);font-weight:650}.ua-pos-due-value{font-size:38px;line-height:1.1;font-weight:850;letter-spacing:-.04em;margin:5px 0 15px;color:#101828;font-variant-numeric:tabular-nums}.ua-pos-pay-main{height:54px;width:100%;border:0;border-radius:10px;background:var(--green);color:#fff;font-size:16px;font-weight:800}.ua-pos-pay-main:disabled{background:#98a2b3}.ua-pos-pay-split{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.ua-pos-pay-split button{height:42px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font-weight:700;font-size:12px}.ua-pos-pay-split button.card{color:#1d4ed8;border-color:#bfdbfe;background:#eff6ff}.ua-pos-footer-status{display:flex;gap:13px;padding:8px 16px;border-top:1px solid var(--line);font-size:10px;color:var(--muted)}
     .ua-pos-denoms{width:100%;border-collapse:collapse}.ua-pos-denoms th,.ua-pos-denoms td{border-bottom:1px solid #eaecf0;padding:7px 9px;text-align:right}.ua-pos-denoms th:first-child,.ua-pos-denoms td:first-child{text-align:left}.ua-pos-denoms input{width:92px;height:32px;border:1px solid #d0d5dd;border-radius:6px;padding:0 8px;text-align:right}.ua-pos-denom-total{font-size:20px;font-weight:800;text-align:right;padding:12px 0}.ua-pos-modal-note{padding:9px 11px;background:#f2f4f7;border-radius:7px;color:#475467;font-size:12px;margin-bottom:10px}
-    @media(max-width:1050px){.ua-pos-main{grid-template-columns:minmax(0,1fr) 290px}.ua-pos-statuses .ua-pos-chip:nth-child(n+4){display:none}}@media(max-width:800px){.ua-pos-main{grid-template-columns:1fr;height:auto}.ua-pos-summary{min-height:360px}.ua-pos-topbar{padding:0 12px}.ua-pos-topbar .ua-pos-brand{min-width:auto}.ua-pos-topbar .ua-pos-brand>div:last-child,.ua-pos-statuses{display:none}.ua-pos-command-top{flex-wrap:wrap}.ua-pos-mode{height:48px}.ua-pos-main{padding:10px}.ua-pos-command{padding:10px}}
+    .ua-pos-stock-dialog .modal-dialog{max-width:min(1220px,96vw)}.ua-pos-stock-dialog .modal-body{padding:0!important}.ua-pos-stock-browser{display:grid;grid-template-columns:250px minmax(0,1fr);height:min(690px,78vh);min-height:520px;background:#f8fafc}.ua-pos-stock-sidebar{display:flex;flex-direction:column;min-width:0;border-right:1px solid #dfe4ec;background:#fff}.ua-pos-stock-sidebar-head{padding:16px;border-bottom:1px solid #eaecf0}.ua-pos-stock-sidebar-head strong{display:block;font-size:14px}.ua-pos-stock-sidebar-head span{display:block;margin-top:3px;color:#667085;font-size:11px}.ua-pos-category-tree{flex:1;overflow:auto;padding:8px}.ua-pos-category{width:100%;min-height:36px;border:0;border-radius:7px;background:transparent;color:#344054;text-align:left;padding:7px 10px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ua-pos-category:hover{background:#f2f4f7}.ua-pos-category.active{background:#eff6ff;color:#1d4ed8;font-weight:750}.ua-pos-stock-content{display:flex;flex-direction:column;min-width:0;overflow:hidden}.ua-pos-stock-toolbar{display:flex;gap:10px;padding:14px 16px;background:#fff;border-bottom:1px solid #dfe4ec}.ua-pos-stock-query{flex:1;height:42px;border:1px solid #cfd6e2;border-radius:9px;padding:0 13px;background:#fff}.ua-pos-stock-clear{height:42px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:0 14px;color:#475467}.ua-pos-stock-meta{padding:10px 16px 0;color:#667085;font-size:12px}.ua-pos-product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;padding:14px 16px;overflow:auto;align-content:start}.ua-pos-product-card{display:flex;flex-direction:column;min-width:0;border:1px solid #dfe4ec;border-radius:11px;background:#fff;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.04)}.ua-pos-product-card:hover{border-color:#98a2b3;box-shadow:0 5px 16px rgba(16,24,40,.08)}.ua-pos-product-open{display:block;width:100%;border:0;background:#fff;padding:0;text-align:left;color:#1d2939}.ua-pos-product-image{height:142px;display:grid;place-items:center;background:#f8fafc;border-bottom:1px solid #eaecf0;overflow:hidden}.ua-pos-product-image img{width:100%;height:100%;object-fit:contain}.ua-pos-product-placeholder{font-size:36px;color:#98a2b3}.ua-pos-product-copy{padding:11px 12px 6px}.ua-pos-product-copy strong{display:block;min-height:34px;font-size:13px;line-height:1.3}.ua-pos-product-copy small{display:block;margin-top:5px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ua-pos-product-stock{display:flex;justify-content:space-between;gap:8px;padding:5px 12px;color:#475467;font-size:11px}.ua-pos-product-stock b{color:#101828}.ua-pos-product-add{height:36px;margin:7px 10px 10px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:750}.ua-pos-product-add:disabled{background:#98a2b3}.ua-pos-stock-empty{grid-column:1/-1;display:grid;place-items:center;min-height:300px;text-align:center;color:#667085}.ua-pos-stock-more{grid-column:1/-1;height:42px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font-weight:700}.ua-pos-product-detail{display:grid;grid-template-columns:minmax(220px,38%) 1fr;gap:20px}.ua-pos-product-detail-media{height:300px;display:grid;place-items:center;border:1px solid #dfe4ec;border-radius:11px;background:#f8fafc;overflow:hidden}.ua-pos-product-detail-media img{width:100%;height:100%;object-fit:contain}.ua-pos-product-detail h3{margin:0 0 5px;font-size:20px;color:#101828}.ua-pos-product-detail-meta{color:#667085;font-size:12px}.ua-pos-product-detail-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0}.ua-pos-product-detail-fact{padding:10px;border-radius:8px;background:#f2f4f7;color:#475467;font-size:11px}.ua-pos-product-detail-fact b{display:block;margin-top:3px;color:#101828;font-size:14px}.ua-pos-product-description{max-height:210px;overflow:auto;white-space:pre-line;color:#344054;font-size:13px;line-height:1.5}
+    @media(max-width:1050px){.ua-pos-main{grid-template-columns:minmax(0,1fr) 290px}.ua-pos-statuses .ua-pos-chip:nth-child(n+4){display:none}}@media(max-width:800px){.ua-pos-main{grid-template-columns:1fr;height:auto}.ua-pos-summary{min-height:360px}.ua-pos-topbar{padding:0 12px}.ua-pos-topbar .ua-pos-brand{min-width:auto}.ua-pos-topbar .ua-pos-brand>div:last-child,.ua-pos-statuses{display:none}.ua-pos-command-top{flex-wrap:wrap}.ua-pos-mode{height:48px}.ua-pos-main{padding:10px}.ua-pos-command{padding:10px}.ua-pos-stock-browser{grid-template-columns:1fr;height:auto;min-height:0}.ua-pos-stock-sidebar{border-right:0;border-bottom:1px solid #dfe4ec}.ua-pos-category-tree{display:flex;overflow:auto}.ua-pos-category{width:auto;flex:0 0 auto;padding-left:10px!important}.ua-pos-product-grid{max-height:60vh;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.ua-pos-product-detail{grid-template-columns:1fr}.ua-pos-product-detail-media{height:220px}}
   </style>`;
   $("#ua-pos-v2-styles").remove();
   $(styles).appendTo(document.head);
@@ -154,7 +155,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
             <button class="ua-pos-action js-customer">♙ Клієнт <span class="ua-pos-shortcut">F4</span></button>
             <button class="ua-pos-action primary js-identify">◎ Ідентифікувати <span class="ua-pos-shortcut">F5</span></button>
             <button class="ua-pos-action js-create-invoice">▧ Створити рахунок</button>
-            <button class="ua-pos-action js-discount">% Знижка <span class="ua-pos-shortcut">F6</span></button>
+            <button class="ua-pos-action js-discount">% Знижка</button>
             <button class="ua-pos-action js-hold">◫ Відкласти <span class="ua-pos-shortcut">F7</span></button>
             <button class="ua-pos-action js-orders">▱ Відкладені чеки</button>
             <button class="ua-pos-action js-return">↩ Повернення <span class="ua-pos-shortcut">F8</span></button>
@@ -178,7 +179,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
               <table class="ua-pos-table"><thead><tr><th data-col="item">Товар / артикул</th><th data-col="barcode">Штрихкод</th><th data-col="qty" class="num">Кількість</th><th data-col="uom">Од.</th><th data-col="rate" class="num">Ціна</th><th data-col="discount" class="num">Знижка</th><th data-col="amount" class="num">Сума</th><th data-col="tracking">Партія / серійний №</th><th data-col="status">Перевірка</th></tr></thead><tbody class="js-cart-body"></tbody></table>
               <div class="ua-pos-empty js-empty"><div><div class="ua-pos-empty-icon">▦</div><strong>Чек порожній</strong><span>Відскануйте штрихкод або введіть артикул у полі зверху</span></div></div>
             </div>
-            <div class="ua-pos-cart-footer"><span>Артикулів: <b class="js-lines">0</b></span><span>Кількість: <b class="js-qty">0</b></span><span>Гарячі клавіші: <b>F2 пошук · F4 клієнт · F8 повернення · F9 оплатити</b></span></div>
+            <div class="ua-pos-cart-footer"><span>Артикулів: <b class="js-lines">0</b></span><span>Кількість: <b class="js-qty">0</b></span><span>Гарячі клавіші: <b>F2 пошук · F4 клієнт · F6 оплатити · F8 повернення</b></span></div>
           </section>
           <aside class="ua-pos-panel ua-pos-summary">
             <div class="ua-pos-summary-head"><span>Поточний документ</span><strong class="js-order-name">Чек ще не створено</strong><span class="ua-pos-order-badge js-order-badge">ГОТОВО ДО РОБОТИ</span></div>
@@ -191,7 +192,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
               <div class="ua-pos-total-row js-cash-received-row" style="display:none"><span>Отримано готівкою</span><strong><span class="js-cash-received">0,00</span> грн</strong></div>
               <div class="ua-pos-total-row"><span>Решта</span><strong><span class="js-change">0,00</span> грн</strong></div>
             </div>
-            <div class="ua-pos-due"><div class="ua-pos-due-label">Сума до оплати</div><div class="ua-pos-due-value"><span class="js-total">0,00</span> <small>грн</small></div><button class="ua-pos-pay-main js-pay-cash" disabled>Оплатити · F9</button><div class="ua-pos-pay-split"><button class="js-pay-cash" disabled>Готівка</button><button class="card js-pay-card" disabled>Безготівкова</button><button class="js-pay-mixed" disabled>Змішана оплата</button><button class="js-print" disabled>Друк чека</button></div></div>
+            <div class="ua-pos-due"><div class="ua-pos-due-label">Сума до оплати</div><div class="ua-pos-due-value"><span class="js-total">0,00</span> <small>грн</small></div><button class="ua-pos-pay-main js-pay-cash" disabled>Оплатити · F6</button><div class="ua-pos-pay-split"><button class="js-pay-cash" disabled>Готівка</button><button class="card js-pay-card" disabled>Безготівкова</button><button class="js-pay-mixed" disabled>Змішана оплата</button><button class="js-print" disabled>Друк чека</button></div></div>
             <div class="ua-pos-footer-status"><span>● ERP онлайн</span><span class="js-footer-shift">○ зміна закрита</span><span class="js-footer-mode">○ без фіскалізації</span></div>
           </aside>
         </main>
@@ -414,38 +415,72 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
     }
   }
 
-  function denominationDialog({ title, expected = null, onSubmit }) {
-    const denominations = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5, 0.25, 0.1];
+  const denominations = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5, 0.25, 0.1];
+  const denominationTable = () => {
     const rows = denominations.map((value) => `<tr><td>${money(value)} грн</td><td><input type="number" min="0" step="1" value="0" data-denomination="${value}"></td><td class="js-row-total">0,00 грн</td></tr>`).join("");
+    return `<table class="ua-pos-denoms"><thead><tr><th>Номінал</th><th>Кількість</th><th>Сума</th></tr></thead><tbody>${rows}</tbody></table><div class="ua-pos-denom-total">Разом: <span>0,00</span> грн</div>`;
+  };
+  const readDenominations = ($scope) => {
+    const counted = [];
+    $scope.find("[data-denomination]").each(function () {
+      const qty = Math.max(0, parseInt(this.value || "0", 10));
+      if (qty) counted.push({ currency: "UAH", denomination: flt(this.dataset.denomination), qty });
+    });
+    return counted;
+  };
+  const denominationTotal = (rows) => rows.reduce((sum, row) => sum + flt(row.denomination) * parseInt(row.qty || 0, 10), 0);
+  const bindDenominationTable = ($scope) => {
+    const recalc = () => {
+      let total = 0;
+      $scope.find("[data-denomination]").each(function () {
+        const rowTotal = flt(this.dataset.denomination) * Math.max(0, parseInt(this.value || "0", 10));
+        total += rowTotal;
+        $(this).closest("tr").find(".js-row-total").text(`${money(rowTotal)} грн`);
+      });
+      $scope.find(".ua-pos-denom-total span").text(money(total));
+    };
+    $scope.on("input", "[data-denomination]", recalc);
+  };
+  function notifyCashPrint(result) {
+    if (result?.print_error) {
+      frappe.msgprint({
+        title: "Операцію проведено, документ не надруковано",
+        indicator: "orange",
+        message: esc(result.print_error),
+      });
+    } else if (["Queued", "Printing"].includes(result?.print_status)) {
+      frappe.show_alert({ message: "Касовий документ передано на чековий принтер", indicator: "blue" });
+    }
+  }
+
+  function denominationDialog({ title, expected = null, onSubmit }) {
     const dialog = new frappe.ui.Dialog({
       title,
       size: "large",
       fields: [
-        { fieldname: "info", fieldtype: "HTML", options: `${expected === null ? "" : `<div class="ua-pos-modal-note">Очікуваний залишок: <b>${money(expected)} грн</b></div>`}<table class="ua-pos-denoms"><thead><tr><th>Номінал</th><th>Кількість</th><th>Сума</th></tr></thead><tbody>${rows}</tbody></table><div class="ua-pos-denom-total">Разом: <span>0,00</span> грн</div>` },
+        { fieldname: "info", fieldtype: "HTML", options: `${expected === null ? "" : `<div class="ua-pos-modal-note">Очікуваний залишок: <b>${money(expected)} грн</b></div>`}${denominationTable()}` },
         ...(expected === null ? [] : [{ fieldname: "comment", fieldtype: "Small Text", label: "Коментар касира" }]),
       ],
       primary_action_label: "Підтвердити перерахунок",
       primary_action: async (values) => {
-        const counted = [];
-        dialog.$wrapper.find("[data-denomination]").each(function () { const qty = Math.max(0, parseInt(this.value || "0", 10)); if (qty) counted.push({ currency: "UAH", denomination: flt(this.dataset.denomination), qty }); });
+        const counted = readDenominations(dialog.$wrapper);
         dialog.get_primary_btn().prop("disabled", true);
         try { await onSubmit(counted, values.comment || ""); dialog.hide(); } finally { dialog.get_primary_btn().prop("disabled", false); }
       },
     });
     dialog.show();
-    const recalc = () => { let total = 0; dialog.$wrapper.find("[data-denomination]").each(function () { const rowTotal = flt(this.dataset.denomination) * Math.max(0, parseInt(this.value || "0", 10)); total += rowTotal; $(this).closest("tr").find(".js-row-total").text(`${money(rowTotal)} грн`); }); dialog.$wrapper.find(".ua-pos-denom-total span").text(money(total)); };
-    dialog.$wrapper.on("input", "[data-denomination]", recalc);
+    bindDenominationTable(dialog.$wrapper);
     dialog.$wrapper.find("[data-denomination]").first().focus();
   }
 
   function openShift() {
-    denominationDialog({ title: "Відкриття управлінської зміни", onSubmit: async (rows) => { await api("open_shift", { pos_session_token: state.token, denominations: JSON.stringify(rows), idem_key: idem() }); await refreshSession(); frappe.show_alert({ message: "Зміну відкрито", indicator: "green" }); } });
+    denominationDialog({ title: "Відкриття управлінської зміни", onSubmit: async (rows) => { const result = await api("open_shift", { pos_session_token: state.token, denominations: JSON.stringify(rows), idem_key: idem() }); await refreshSession(); frappe.show_alert({ message: "Зміну відкрито", indicator: "green" }); notifyCashPrint(result); } });
   }
 
   async function closeShift() {
     const summary = await api("close_shift_begin", { pos_session_token: state.token });
     if ((summary.blocking_orders || []).length) return showNotice(`Неможливо закрити зміну: незавершені чеки ${summary.blocking_orders.join(", ")}`, "error");
-    denominationDialog({ title: "Закриття управлінської зміни", expected: summary.expected, onSubmit: async (rows, comment) => { await api("close_shift_confirm", { pos_session_token: state.token, denominations: JSON.stringify(rows), comment, idem_key: idem() }); renderOrder(null); await refreshSession(); frappe.show_alert({ message: "Зміну закрито", indicator: "green" }); } });
+    denominationDialog({ title: "Закриття управлінської зміни", expected: summary.expected, onSubmit: async (rows, comment) => { const result = await api("close_shift_confirm", { pos_session_token: state.token, denominations: JSON.stringify(rows), comment, idem_key: idem() }); renderOrder(null); await refreshSession(); frappe.show_alert({ message: "Зміну закрито", indicator: "green" }); notifyCashPrint(result); } });
   }
 
   async function newOrder() {
@@ -552,22 +587,32 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
           }),
         }] : []),
         { fieldname: "notes", fieldtype: "Small Text", label: "Підстава / коментар", reqd: movementType !== "Cash In" },
+        { fieldname: "count_by_denomination", fieldtype: "Check", label: "Виконати покупюрний перерахунок" },
+        { fieldname: "denomination_table", fieldtype: "HTML", depends_on: "eval:doc.count_by_denomination", options: denominationTable() },
       ],
       primary_action_label: "Провести операцію",
       primary_action: async (values) => {
+        const counted = values.count_by_denomination ? readDenominations(dialog.$wrapper) : [];
+        if (values.count_by_denomination && !counted.length) return frappe.msgprint("Вкажіть кількість хоча б одного номіналу.");
+        if (values.count_by_denomination && Math.abs(denominationTotal(counted) - flt(values.amount)) > 0.01) {
+          return frappe.msgprint("Сума покупюрного перерахунку має дорівнювати сумі операції.");
+        }
         const result = await api("cash_operation", {
           pos_session_token: state.token,
           movement_type: movementType,
           amount: values.amount,
           expense_account: values.expense_account || null,
           notes: values.notes || "",
+          denominations: JSON.stringify(counted),
           idem_key: idem(),
         });
         dialog.hide();
         frappe.show_alert({ message: `${title}: ${money(values.amount)} грн · залишок ${money(result.cash_balance)} грн`, indicator: "green" });
+        notifyCashPrint(result);
       },
     });
     dialog.show();
+    bindDenominationTable(dialog.$wrapper);
     dialog.fields_dict.amount.$input.focus();
   }
 
@@ -671,25 +716,190 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
   }
 
   function stockSearch() {
+    const browser = {
+      categories: [],
+      items: [],
+      itemGroup: "",
+      query: "",
+      offset: 0,
+      hasMore: false,
+      request: 0,
+    };
     const dialog = new frappe.ui.Dialog({
-      title: "Пошук товару на складі",
-      size: "large",
-      fields: [
-        { fieldname: "query", fieldtype: "Data", label: "Артикул, назва або штрихкод", reqd: 1 },
-        { fieldname: "results", fieldtype: "HTML", options: '<div class="text-muted">Введіть запит і натисніть «Знайти».</div>' },
-      ],
-      primary_action_label: "Знайти",
-      primary_action: async (values) => {
-        const rows = await api("stock_search", { pos_session_token: state.token, query: values.query });
-        const html = rows.length
-          ? `<table class="ua-pos-denoms"><thead><tr><th>Товар</th><th>Штрихкод</th><th>Залишок</th><th>Ціна</th><th></th></tr></thead><tbody>${rows.map((row) => `<tr><td style="text-align:left"><b>${esc(row.item_name)}</b><br><small>${esc(row.item_code)}</small></td><td>${esc(row.barcode || "—")}</td><td>${money(row.actual_qty)} ${esc(row.uom)}</td><td>${money(row.rate)} грн</td><td><button class="btn btn-xs btn-primary js-add-stock" data-item="${esc(row.item_code)}">Додати</button></td></tr>`).join("")}</tbody></table>`
-          : '<div class="ua-pos-modal-note">Товарів не знайдено.</div>';
-        dialog.fields_dict.results.$wrapper.html(html);
-      },
+      title: "Товари на складі",
+      size: "extra-large",
+      fields: [{
+        fieldname: "browser",
+        fieldtype: "HTML",
+        options: `
+          <div class="ua-pos-stock-browser">
+            <aside class="ua-pos-stock-sidebar">
+              <div class="ua-pos-stock-sidebar-head"><strong>Категорії товарів</strong><span>Оберіть розділ дерева</span></div>
+              <div class="ua-pos-category-tree"><div class="text-muted" style="padding:12px">Завантаження…</div></div>
+            </aside>
+            <section class="ua-pos-stock-content">
+              <div class="ua-pos-stock-toolbar">
+                <input class="ua-pos-stock-query" type="search" autocomplete="off" placeholder="Назва, артикул, опис або штрихкод">
+                <button class="ua-pos-stock-clear" type="button">Очистити</button>
+              </div>
+              <div class="ua-pos-stock-meta">Завантаження товарів…</div>
+              <div class="ua-pos-product-grid"></div>
+            </section>
+          </div>`,
+      }],
     });
+
+    const imageMarkup = (row, className = "ua-pos-product-image") => `
+      <div class="${className}">
+        ${row.image ? `<img src="${esc(row.image)}" alt="${esc(row.item_name)}">` : '<span class="ua-pos-product-placeholder">▦</span>'}
+      </div>`;
+    const categoryLabel = () => {
+      if (!browser.itemGroup) return "Усі категорії";
+      const category = browser.categories.find((row) => row.name === browser.itemGroup);
+      return category?.item_group_name || category?.name || browser.itemGroup;
+    };
+    const renderCategories = () => {
+      const names = new Set(browser.categories.map((row) => row.name));
+      const children = new Map();
+      browser.categories.forEach((row) => {
+        const parent = names.has(row.parent_item_group) ? row.parent_item_group : "";
+        if (!children.has(parent)) children.set(parent, []);
+        children.get(parent).push(row);
+      });
+      const visited = new Set();
+      const branch = (parent, depth = 0) => (children.get(parent) || []).map((row) => {
+        if (visited.has(row.name)) return "";
+        visited.add(row.name);
+        return `<button type="button" class="ua-pos-category${browser.itemGroup === row.name ? " active" : ""}" data-group="${esc(row.name)}" style="padding-left:${10 + depth * 15}px" title="${esc(row.item_group_name || row.name)}">${row.is_group ? "▸" : "•"} ${esc(row.item_group_name || row.name)}</button>${branch(row.name, depth + 1)}`;
+      }).join("");
+      const all = `<button type="button" class="ua-pos-category${browser.itemGroup ? "" : " active"}" data-group=""><b>Усі товари</b></button>`;
+      dialog.$wrapper.find(".ua-pos-category-tree").html(all + branch(""));
+    };
+    const productCard = (row) => `
+      <article class="ua-pos-product-card">
+        <button type="button" class="ua-pos-product-open js-stock-details" data-item="${esc(row.item_code)}">
+          ${imageMarkup(row)}
+          <span class="ua-pos-product-copy"><strong>${esc(row.item_name)}</strong><small>${esc(row.item_code)} · ${esc(row.item_group || "Без категорії")}</small></span>
+        </button>
+        <div class="ua-pos-product-stock"><span>Залишок <b>${money(row.actual_qty)} ${esc(row.uom)}</b></span><span><b>${money(row.rate)} грн</b></span></div>
+        <button type="button" class="ua-pos-product-add js-add-stock" data-item="${esc(row.item_code)}">Додати до чека</button>
+      </article>`;
+    const renderProducts = () => {
+      const $grid = dialog.$wrapper.find(".ua-pos-product-grid");
+      const cards = browser.items.map(productCard).join("");
+      const more = browser.hasMore ? '<button type="button" class="ua-pos-stock-more">Показати ще</button>' : "";
+      $grid.html(cards || '<div class="ua-pos-stock-empty"><div><div style="font-size:38px;opacity:.45">⌕</div><b>Товарів не знайдено</b><br><small>Оберіть іншу категорію або змініть запит.</small></div></div>');
+      if (cards) $grid.append(more);
+      dialog.$wrapper.find(".ua-pos-stock-meta").text(`${categoryLabel()} · показано ${browser.items.length}${browser.hasMore ? "+" : ""}`);
+    };
+    const loadProducts = async ({ append = false } = {}) => {
+      const request = ++browser.request;
+      if (!append) {
+        browser.offset = 0;
+        browser.items = [];
+        dialog.$wrapper.find(".ua-pos-product-grid").html('<div class="ua-pos-stock-empty">Завантаження товарів…</div>');
+      }
+      const result = await api("stock_catalog", {
+        pos_session_token: state.token,
+        query: browser.query,
+        item_group: browser.itemGroup,
+        offset: browser.offset,
+        limit: 24,
+      });
+      if (request !== browser.request) return;
+      browser.items = append ? [...browser.items, ...(result.items || [])] : (result.items || []);
+      browser.offset = browser.items.length;
+      browser.hasMore = Boolean(result.has_more);
+      renderProducts();
+    };
+    const showProduct = (itemCode) => {
+      const row = browser.items.find((item) => item.item_code === itemCode);
+      if (!row) return;
+      const details = new frappe.ui.Dialog({
+        title: "Картка товару",
+        size: "large",
+        fields: [{
+          fieldname: "details",
+          fieldtype: "HTML",
+          options: `
+            <div class="ua-pos-product-detail">
+              ${imageMarkup(row, "ua-pos-product-detail-media")}
+              <div>
+                <h3>${esc(row.item_name)}</h3>
+                <div class="ua-pos-product-detail-meta">${esc(row.item_code)}${row.barcode ? ` · ${esc(row.barcode)}` : ""}</div>
+                <div class="ua-pos-product-detail-facts">
+                  <div class="ua-pos-product-detail-fact">Категорія<b>${esc(row.item_group || "—")}</b></div>
+                  <div class="ua-pos-product-detail-fact">Бренд<b>${esc(row.brand || "—")}</b></div>
+                  <div class="ua-pos-product-detail-fact">Залишок<b>${money(row.actual_qty)} ${esc(row.uom)}</b></div>
+                  <div class="ua-pos-product-detail-fact">Ціна<b>${money(row.rate)} грн</b></div>
+                </div>
+                <div class="ua-pos-product-description">${esc(row.description || "Опис товару не заповнено.")}</div>
+              </div>
+            </div>`,
+        }],
+        primary_action_label: "Додати до чека",
+        primary_action: async () => {
+          details.get_primary_btn().prop("disabled", true);
+          try {
+            await scan(row.item_code);
+            details.hide();
+            frappe.show_alert({ message: `${row.item_name}: додано до чека`, indicator: "green" });
+          } finally {
+            details.get_primary_btn().prop("disabled", false);
+          }
+        },
+      });
+      details.show();
+    };
+
     dialog.show();
-    dialog.fields_dict.query.$input.focus();
-    dialog.$wrapper.on("click", ".js-add-stock", async function () { await scan(this.dataset.item); dialog.hide(); });
+    dialog.$wrapper.addClass("ua-pos-stock-dialog");
+    const $query = dialog.$wrapper.find(".ua-pos-stock-query");
+    let searchTimer = null;
+    $query.on("input", function () {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        browser.query = this.value.trim();
+        loadProducts();
+      }, 300);
+    }).on("keydown", function (event) {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      clearTimeout(searchTimer);
+      browser.query = this.value.trim();
+      loadProducts();
+    });
+    dialog.$wrapper.on("click", ".ua-pos-stock-clear", () => {
+      $query.val("");
+      browser.query = "";
+      loadProducts();
+      $query.focus();
+    });
+    dialog.$wrapper.on("click", ".ua-pos-category", function () {
+      browser.itemGroup = this.dataset.group || "";
+      renderCategories();
+      loadProducts();
+    });
+    dialog.$wrapper.on("click", ".ua-pos-stock-more", () => loadProducts({ append: true }));
+    dialog.$wrapper.on("click", ".js-stock-details", function () { showProduct(this.dataset.item); });
+    dialog.$wrapper.on("click", ".js-add-stock", async function () {
+      const button = $(this);
+      button.prop("disabled", true).text("Додаємо…");
+      try {
+        await scan(this.dataset.item);
+        button.text("Додано ✓");
+      } finally {
+        setTimeout(() => button.prop("disabled", false).text("Додати до чека"), 800);
+      }
+    });
+    Promise.all([
+      api("stock_categories", { pos_session_token: state.token }),
+      loadProducts(),
+    ]).then(([categories]) => {
+      browser.categories = categories || [];
+      renderCategories();
+      $query.focus();
+    });
   }
 
   async function showHeldOrders() {
@@ -1171,7 +1381,7 @@ frappe.pages["ua-pos"].on_page_load = function (wrapper) {
 
   $(document).off("keydown.ua_pos").on("keydown.ua_pos", (event) => {
     if ($(event.target).is("input,textarea,select") && !/^F\d{1,2}$/.test(event.key)) return;
-	const actions = { F2: () => $root.find(".ua-pos-scan").focus(), F3: () => $root.find(".js-stock").click(), F4: selectCustomer, F5: identifyCustomer, F6: discountDialog, F7: () => $root.find(".js-hold").click(), F8: startReturn, F9: () => { if (!$root.find(".js-pay-cash").first().prop("disabled")) paymentDialog("cash"); } };
+	const actions = { F2: () => $root.find(".ua-pos-scan").focus(), F3: () => $root.find(".js-stock").click(), F4: selectCustomer, F5: identifyCustomer, F6: () => { if (!$root.find(".js-pay-cash").first().prop("disabled")) paymentDialog("cash"); }, F7: () => $root.find(".js-hold").click(), F8: startReturn };
     if (actions[event.key]) { event.preventDefault(); actions[event.key](); }
     if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "s") { event.preventDefault(); openShift(); }
     if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "c") { event.preventDefault(); closeShift(); }

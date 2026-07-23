@@ -22,6 +22,13 @@ from erpnext_ua.ua_pos.services.common import audit
 MAX_PRINT_PAYLOAD = 128 * 1024
 STALE_PRINT_MINUTES = 10
 PRRO_SOFTWARE_PRODUCT = "ПРРО ERPNext Україна"
+CASH_DOCUMENT_TITLES = {
+	"Shift Open": "ВІДКРИТТЯ ЗМІНИ",
+	"Shift Close": "ЗАКРИТТЯ ЗМІНИ",
+	"Cash In": "ВНЕСЕННЯ ГОТІВКИ",
+	"Expense": "ВИТРАТА З КАСИ",
+	"Incassation Out": "ІНКАСАЦІЯ",
+}
 
 
 class EscPosReceipt:
@@ -441,6 +448,10 @@ def render_order_receipt(order, printer, *, is_copy: bool = False) -> bytes:
 		if company.get("tax_id"):
 			output.text(f"ЄДРПОУ/РНОКПП: {company.tax_id}", align="center")
 		output.text(desk.desk_name, align="center")
+		employee_name = (
+			frappe.db.get_value("Employee", order.employee, "employee_name") or order.employee
+		)
+		output.text(f"Касир: {employee_name}")
 		items = [
 			{"name": row.item_name or row.item_code, "qty": row.qty, "price": row.rate, "amount": row.amount}
 			for row in order.items
@@ -566,6 +577,134 @@ def render_order_receipt(order, printer, *, is_copy: bool = False) -> bytes:
 	payload = output.finish()
 	if len(payload) > MAX_PRINT_PAYLOAD:
 		frappe.throw("Сформований чек перевищує ліміт друку 128 KiB")
+	return payload
+
+
+def _denomination_snapshot(rows) -> list[dict]:
+	return [
+		{
+			"currency": row.currency or "UAH",
+			"denomination": frappe.utils.flt(row.denomination),
+			"qty": int(row.qty or 0),
+			"subtotal": frappe.utils.flt(row.subtotal)
+			or frappe.utils.flt(row.denomination) * int(row.qty or 0),
+		}
+		for row in rows or []
+		if int(row.qty or 0)
+	]
+
+
+def cash_document_snapshot(reference_doctype: str, reference_name: str, operation: str) -> dict:
+	"""Build a printable snapshot for a managerial cash operation."""
+	if reference_doctype not in {"POS Operational Shift", "POS Cash Movement"}:
+		frappe.throw("Непідтримуваний тип касового документа")
+	document = frappe.get_doc(reference_doctype, reference_name)
+	desk = frappe.get_doc("POS Cash Desk", document.cash_desk)
+	company = frappe.db.get_value(
+		"Company", desk.company, ["company_name", "tax_id"], as_dict=True
+	) or {}
+	employee = (
+		document.responsible_employee
+		if reference_doctype == "POS Operational Shift"
+		else document.employee
+	)
+	snapshot = {
+		"title": CASH_DOCUMENT_TITLES.get(operation, operation.upper()),
+		"operation": operation,
+		"reference_doctype": reference_doctype,
+		"reference_name": document.name,
+		"company": company.get("company_name") or desk.company,
+		"tax_id": company.get("tax_id") or "",
+		"cash_desk": desk.desk_name or desk.name,
+		"employee": employee,
+		"cashier": frappe.db.get_value("Employee", employee, "employee_name") or employee,
+		"shift": document.name
+		if reference_doctype == "POS Operational Shift"
+		else document.operational_shift,
+		"journal_entry": "",
+		"notes": "",
+		"prro_receipt": "",
+		"fiscal_number": "",
+	}
+	if reference_doctype == "POS Operational Shift":
+		is_close = operation == "Shift Close"
+		snapshot.update(
+			{
+				"event_at": document.closed_at if is_close else document.opened_at,
+				"amount": document.counted_cash
+				if is_close
+				else sum(row.subtotal or 0 for row in document.opening_counts),
+				"expected_cash": document.expected_cash if is_close else None,
+				"counted_cash": document.counted_cash if is_close else None,
+				"discrepancy": document.discrepancy if is_close else None,
+				"notes": document.closing_comment if is_close else "",
+				"denominations": _denomination_snapshot(
+					document.closing_counts if is_close else document.opening_counts
+				),
+			}
+		)
+	else:
+		snapshot.update(
+			{
+				"event_at": document.creation,
+				"amount": document.amount,
+				"direction": document.direction,
+				"journal_entry": document.journal_entry or "",
+				"notes": document.notes or "",
+				"prro_receipt": document.prro_receipt or "",
+				"denominations": _denomination_snapshot(document.denomination_counts),
+			}
+		)
+		if document.prro_receipt:
+			snapshot["fiscal_number"] = (
+				frappe.db.get_value("PRRO Receipt", document.prro_receipt, "fiscal_number") or ""
+			)
+	return snapshot
+
+
+def render_cash_document(snapshot: dict, printer) -> bytes:
+	"""Render a cash-operation slip with cashier, totals and optional denomination table."""
+	output = EscPosReceipt(
+		width=printer.characters_per_line,
+		encoding=printer.encoding,
+		code_page=printer.code_page,
+	)
+	output.text(snapshot["company"], align="center", bold=True)
+	if snapshot.get("tax_id"):
+		output.text(f"ЄДРПОУ/РНОКПП: {snapshot['tax_id']}", align="center")
+	output.text(snapshot["cash_desk"], align="center")
+	output.rule()
+	output.text(snapshot["title"], align="center", bold=True)
+	output.rule()
+	output.text(f"Дата/час: {snapshot.get('event_at') or frappe.utils.now_datetime()}")
+	output.text(f"Касир: {snapshot['cashier']} ({snapshot['employee']})")
+	output.text(f"Зміна: {snapshot['shift']}")
+	output.pair("СУМА", _money(snapshot.get("amount")), bold=True)
+	if snapshot.get("expected_cash") is not None:
+		output.pair("Очікувано", _money(snapshot["expected_cash"]))
+		output.pair("Перераховано", _money(snapshot["counted_cash"]))
+		output.pair("Розбіжність", _money(snapshot["discrepancy"]), bold=True)
+	if snapshot.get("denominations"):
+		output.rule()
+		output.text("ПОКУПЮРНИЙ ПЕРЕРАХУНОК", align="center", bold=True)
+		for row in snapshot["denominations"]:
+			label = f"{row['denomination']:g} x {row['qty']} {row['currency']}"
+			output.pair(label, _money(row["subtotal"]))
+	if snapshot.get("journal_entry"):
+		output.text(f"Проводка: {snapshot['journal_entry']}")
+	if snapshot.get("prro_receipt"):
+		output.text(f"Документ ПРРО: {snapshot['prro_receipt']}")
+	if snapshot.get("fiscal_number"):
+		output.text(f"Фіскальний №: {snapshot['fiscal_number']}")
+	if snapshot.get("notes"):
+		output.rule()
+		output.text(f"Підстава: {snapshot['notes']}")
+	output.rule()
+	output.text(f"Документ: {snapshot['reference_name']}", align="center")
+	output.text("Підпис касира: __________________", align="center")
+	payload = output.finish()
+	if len(payload) > MAX_PRINT_PAYLOAD:
+		frappe.throw("Сформований касовий документ перевищує ліміт друку 128 KiB")
 	return payload
 
 
@@ -766,6 +905,52 @@ def queue_order_receipt(order, *, is_copy: bool = False, idem_key: str | None = 
 		queue="short",
 		enqueue_after_commit=True,
 		job_name=f"pos-print-{job.name}",
+		job_name_ref=job.name,
+	)
+	return job
+
+
+def queue_cash_document(
+	cash_desk: str,
+	reference_doctype: str,
+	reference_name: str,
+	operation: str,
+	*,
+	idem_key: str,
+):
+	"""Queue one immutable cash-operation slip without repeating it on retries."""
+	desk = frappe.get_doc("POS Cash Desk", cash_desk)
+	if not desk.print_cash_documents or not desk.receipt_printer:
+		return None
+	printer = frappe.get_doc("POS Printer", desk.receipt_printer)
+	if printer.status == "Disabled":
+		frappe.throw(f"Принтер {printer.name} вимкнено")
+	key = f"cash-document:{operation.lower().replace(' ', '-')}:{reference_name}:{idem_key}"[:140]
+	existing = frappe.db.get_value("POS Print Job", {"idem_key": key}, "name")
+	if existing:
+		return frappe.get_doc("POS Print Job", existing)
+	snapshot = cash_document_snapshot(reference_doctype, reference_name, operation)
+	payload = render_cash_document(snapshot, printer)
+	job = frappe.get_doc(
+		{
+			"doctype": "POS Print Job",
+			"printer": printer.name,
+			"cash_desk": desk.name,
+			"job_type": "Cash Document",
+			"reference_doctype": reference_doctype,
+			"reference_name": reference_name,
+			"format": "ESC/POS",
+			"status": "Queued",
+			"max_attempts": printer.max_attempts,
+			"idem_key": key,
+			"payload_base64": base64.b64encode(payload).decode(),
+		}
+	).insert(ignore_permissions=True)
+	frappe.enqueue(
+		"erpnext_ua.ua_pos.print_service.process_print_job",
+		queue="short",
+		enqueue_after_commit=True,
+		job_name=f"pos-cash-document-{job.name}",
 		job_name_ref=job.name,
 	)
 	return job

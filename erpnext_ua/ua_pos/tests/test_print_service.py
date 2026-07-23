@@ -12,6 +12,7 @@ from erpnext_ua.ua_pos.print_service import (
 	fiscal_snapshot,
 	render_browser_fiscal_receipt,
 	render_browser_fiscal_report,
+	render_cash_document,
 	render_fiscal_report,
 	render_order_receipt,
 )
@@ -244,6 +245,44 @@ class TestPrintService(unittest.TestCase):
 		self.assertIn("Локальний № документа 3199".encode("cp1251"), payload)
 		self.assertIn("Надруковано: 14.07.2026 21:44:55".encode("cp1251"), payload)
 		self.assertNotIn(b".998758", payload)
+
+	def test_cash_document_contains_cashier_amount_and_denomination_table(self):
+		printer = frappe._dict(
+			{"characters_per_line": 48, "encoding": "cp1251", "code_page": 46}
+		)
+		snapshot = {
+			"title": "ЗАКРИТТЯ ЗМІНИ",
+			"company": "Магазин HUNTER",
+			"tax_id": "1234567890",
+			"cash_desk": "КАСА-1",
+			"event_at": "2026-07-23 20:15:00",
+			"cashier": "Іван Кравчук",
+			"employee": "HR-EMP-00001",
+			"shift": "POS-SHIFT-2026-00001",
+			"amount": 1700,
+			"expected_cash": 1700,
+			"counted_cash": 1700,
+			"discrepancy": 0,
+			"denominations": [
+				{"currency": "UAH", "denomination": 1000, "qty": 1, "subtotal": 1000},
+				{"currency": "UAH", "denomination": 500, "qty": 1, "subtotal": 500},
+				{"currency": "UAH", "denomination": 100, "qty": 2, "subtotal": 200},
+			],
+			"reference_name": "POS-SHIFT-2026-00001",
+			"journal_entry": "",
+			"prro_receipt": "",
+			"fiscal_number": "",
+			"notes": "Розбіжностей немає",
+		}
+
+		payload = render_cash_document(snapshot, printer)
+
+		self.assertIn("ЗАКРИТТЯ ЗМІНИ".encode("cp1251"), payload)
+		self.assertIn("Іван Кравчук".encode("cp1251"), payload)
+		self.assertIn("1700.00 грн".encode("cp1251"), payload)
+		self.assertIn("ПОКУПЮРНИЙ ПЕРЕРАХУНОК".encode("cp1251"), payload)
+		self.assertIn(b"1000 x 1 UAH", payload)
+		self.assertIn("Підпис касира".encode("cp1251"), payload)
 
 
 if __name__ == "__main__":
