@@ -50,12 +50,14 @@ class TestStockCatalog(unittest.TestCase):
 		frappe.cache.delete_value(session_key(self.token))
 
 	def test_catalog_returns_tree_and_paginated_product_cards(self):
-		from erpnext_ua.ua_pos.api import stock_catalog, stock_categories
+		from erpnext_ua.ua_pos.api import stock_catalog, stock_categories, stock_warehouses
 
 		categories = stock_categories(self.token)
+		warehouses = stock_warehouses(self.token)
 		result = stock_catalog(self.token, limit=2)
 
 		self.assertTrue(categories)
+		self.assertTrue(warehouses)
 		self.assertIn("items", result)
 		self.assertIn("has_more", result)
 		self.assertLessEqual(len(result["items"]), 2)
@@ -65,6 +67,15 @@ class TestStockCatalog(unittest.TestCase):
 			self.assertIn("description", item)
 			self.assertIn("actual_qty", item)
 			self.assertIn("rate", item)
+
+	def test_catalog_accepts_warehouse_and_availability_filters(self):
+		from erpnext_ua.ua_pos.api import stock_catalog, stock_warehouses
+
+		warehouse = stock_warehouses(self.token)[0]["name"]
+		result = stock_catalog(self.token, warehouse=warehouse, availability="in_stock", limit=2)
+
+		self.assertIn("items", result)
+		self.assertTrue(all(float(row["actual_qty"] or 0) > 0 for row in result["items"]))
 
 
 if __name__ == "__main__":

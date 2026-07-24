@@ -21,6 +21,7 @@ from erpnext_ua.ua_pos.accounting import (
 	create_manual_cash_movement,
 	create_shift_discrepancy_movement,
 	make_sales_invoice,
+	customer_transaction_details,
 	payment_methods_for_desk,
 	profile_payment_modes,
 	validate_desk_runtime,
@@ -55,6 +56,79 @@ def _access(employee: str, cash_desk: str):
 		as_dict=True,
 	)
 	return rows[0] if rows else None
+
+
+def _payment_account_policy(session: dict, desk) -> dict:
+	"""Return the employee's account-selection policy with safe legacy defaults."""
+	meta = frappe.get_meta("Employee Cash Desk Access")
+	fields = ["access_role"]
+	if meta.has_field("allow_payment_account_selection"):
+		fields.append("allow_payment_account_selection")
+	if meta.has_field("default_payment_account"):
+		fields.append("default_payment_account")
+	row = frappe.db.get_value(
+		"Employee Cash Desk Access",
+		{"employee": session.get("employee"), "cash_desk": desk.name, "active": 1},
+		fields,
+		as_dict=True,
+	) or {}
+	# Managers retain the useful pre-field behaviour during migration; a cashier
+	# is fixed to the configured account unless explicitly allowed by an admin.
+	can_select = bool(row.get("allow_payment_account_selection")) or row.get("access_role") in {"Manager", "Senior Cashier"}
+	return {"can_select": can_select, "fixed_account": row.get("default_payment_account")}
+
+
+def _payment_accounts(desk, method: dict, policy: dict) -> dict:
+	if method.get("payment_form") == "ГОТІВКА":
+		accounts = [desk.cash_account] if desk.cash_account else []
+	else:
+		accounts = frappe.get_all(
+			"Mode of Payment Account",
+			filters={"parent": method["mode_of_payment"], "company": desk.company},
+			pluck="default_account",
+			order_by="idx asc",
+			limit_page_length=100,
+		)
+	accounts = [account for account in accounts if account]
+	fixed = policy.get("fixed_account") if policy.get("fixed_account") in accounts else (accounts[0] if accounts else None)
+	return {"accounts": accounts, "default_account": fixed, "can_select": bool(policy.get("can_select") and len(accounts) > 1)}
+
+
+def _account_fiscalization_policy(mode_of_payment: str, account: str, company: str) -> str:
+	if not account:
+		return "Успадковувати"
+	policy = (
+		frappe.db.get_value(
+			"Mode of Payment Account",
+			{"parent": mode_of_payment, "company": company, "default_account": account},
+			"ua_fiscalization_policy",
+		)
+		or "Успадковувати"
+	)
+	if policy != "Успадковувати":
+		return policy
+	bank_policy = frappe.db.get_value(
+		"Bank Account",
+		{"account": account, "disabled": 0},
+		"ua_fiscalization_policy",
+	)
+	if bank_policy and bank_policy != "Успадковувати":
+		return bank_policy
+	return frappe.db.get_value("Account", account, "ua_fiscalization_policy") or policy
+
+
+def _resolve_fiscal_mode(doc, payment_rows, desk) -> str:
+	"""Account policy is authoritative for IBAN; a required leg wins in mixed pay."""
+	policies = [
+		_account_fiscalization_policy(row.get("mode_of_payment"), row.get("payment_account"), desk.company)
+		for row in payment_rows
+		if row.get("payment_account")
+	]
+	if "Обов’язково" in policies:
+		return "Fiscal"
+	if policies and all(policy == "Заборонено" for policy in policies):
+		return "Non Fiscal"
+	return doc.fiscal_mode
 
 
 def _owned_order(session: dict, name: str, statuses: set[str] | None = None):
@@ -172,12 +246,19 @@ def session_state(pos_session_token: str) -> dict:
 		order_by="modified desc",
 		limit=10,
 	)
+	policy = _payment_account_policy(session, frappe._dict(desk))
+	payment_methods = []
+	for method in payment_methods_for_desk(desk, configured_payment_methods()):
+		method = dict(method)
+		method.update(_payment_accounts(frappe._dict(desk), method, policy))
+		payment_methods.append(method)
 	return {
 		**session,
 		"employee_name": employee_name or session["employee"],
 		"shift": shift,
 		"desk": desk,
-		"payment_methods": payment_methods_for_desk(desk, configured_payment_methods()),
+		"payment_methods": payment_methods,
+		"payment_account_policy": policy,
 		"unfinished_orders": unfinished,
 	}
 
@@ -199,6 +280,45 @@ def unfinished_orders(pos_session_token: str) -> list[dict]:
 
 
 @frappe.whitelist()
+def customer_summary(pos_session_token: str, customer: str) -> dict:
+	"""Return the verified customer's useful POS loyalty summary."""
+	session = get_session(pos_session_token)
+	desk = frappe.get_doc("POS Cash Desk", session["cash_desk"])
+	doc = frappe.get_doc("Customer", customer)
+	meta = frappe.get_meta("Customer")
+	get = lambda field, default="": doc.get(field) if meta.has_field(field) else default
+	name = " ".join(filter(None, [get("ua_last_name"), get("ua_first_name"), get("ua_middle_name")])) or doc.customer_name
+	phone = get("mobile_no") or get("phone") or ""
+	points = 0
+	bonus_percent = 0
+	if doc.loyalty_program:
+		try:
+			from erpnext.accounts.doctype.loyalty_program.loyalty_program import get_loyalty_program_details_with_points
+
+			loyalty = get_loyalty_program_details_with_points(
+				doc.name, doc.loyalty_program, company=desk.company, silent=True
+			)
+			points = frappe.utils.flt(loyalty.get("loyalty_points"))
+			bonus_percent = frappe.utils.flt(loyalty.get("collection_factor"))
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "UA POS customer loyalty summary")
+	last_purchase = frappe.db.get_value(
+		"Sales Invoice",
+		{"customer": doc.name, "docstatus": 1, "is_return": 0},
+		"posting_date",
+		order_by="posting_date desc, creation desc",
+	)
+	return {
+		"name": doc.name,
+		"customer_name": name,
+		"phone": phone,
+		"loyalty_points": points,
+		"bonus_percent": bonus_percent,
+		"last_purchase": frappe.utils.formatdate(last_purchase) if last_purchase else "—",
+	}
+
+
+@frappe.whitelist()
 def stock_categories(pos_session_token: str) -> list[dict]:
 	"""Return the Item Group hierarchy used by the visual stock browser."""
 	get_session(pos_session_token)
@@ -210,7 +330,21 @@ def stock_categories(pos_session_token: str) -> list[dict]:
 	)
 
 
-def _stock_catalog_filters(query: str, item_group: str) -> tuple[list[str], list]:
+@frappe.whitelist()
+def stock_warehouses(pos_session_token: str) -> list[dict]:
+	"""Return active warehouses from the desk company for stock browsing."""
+	session = get_session(pos_session_token)
+	company = frappe.db.get_value("POS Cash Desk", session["cash_desk"], "company")
+	return frappe.get_all(
+		"Warehouse",
+		filters={"company": company, "disabled": 0, "is_group": 0},
+		fields=["name", "warehouse_name"],
+		order_by="lft asc, warehouse_name asc",
+		limit_page_length=500,
+	)
+
+
+def _stock_catalog_filters(query: str, item_group: str, availability: str) -> tuple[list[str], list]:
 	conditions = ["i.disabled=0", "i.is_sales_item=1"]
 	values = []
 	if query:
@@ -232,6 +366,10 @@ def _stock_catalog_filters(query: str, item_group: str) -> tuple[list[str], list
 			)"""
 		)
 		values.extend((group.lft, group.rgt))
+	if availability == "in_stock":
+		conditions.append("coalesce(b.actual_qty, 0) > 0")
+	elif availability == "out_of_stock":
+		conditions.append("coalesce(b.actual_qty, 0) <= 0")
 	return conditions, values
 
 
@@ -256,18 +394,26 @@ def stock_catalog(
 	pos_session_token: str,
 	query: str = "",
 	item_group: str = "",
+	warehouse: str = "",
+	availability: str = "all",
 	offset: int = 0,
 	limit: int = 24,
 ) -> dict:
 	"""Browse saleable items by Item Group, including stock, image and description."""
 	session = get_session(pos_session_token)
 	desk = frappe.get_doc("POS Cash Desk", session["cash_desk"])
+	warehouse = (warehouse or desk.warehouse).strip()
+	if not frappe.db.exists("Warehouse", {"name": warehouse, "company": desk.company, "disabled": 0, "is_group": 0}):
+		frappe.throw(_("Склад не знайдено або він недоступний для цієї компанії"))
 	query = (query or "").strip()
 	item_group = (item_group or "").strip()
+	availability = (availability or "all").strip()
+	if availability not in {"all", "in_stock", "out_of_stock"}:
+		frappe.throw(_("Непідтримуваний фільтр наявності"))
 	offset = min(max(int(offset or 0), 0), 10000)
 	limit = min(max(int(limit or 24), 1), 60)
-	conditions, values = _stock_catalog_filters(query, item_group)
-	values = [desk.warehouse, *values, query, limit + 1, offset]
+	conditions, values = _stock_catalog_filters(query, item_group, availability)
+	values = [warehouse, *values, query, limit + 1, offset]
 	rows = frappe.db.sql(
 		f"""select i.name as item_code, i.item_name, i.item_group, i.brand,
 			i.stock_uom as uom, i.image, i.description, coalesce(b.actual_qty, 0) as actual_qty,
@@ -1399,6 +1545,17 @@ def _masked_terminal_payload(value):
 	return value
 
 
+def _terminal_reason(status: str, raw: dict | None = None, error_text: str | None = None) -> str:
+	raw = raw or {}
+	if status == "cancelled":
+		return "Оплату скасовано на терміналі."
+	if status == "declined":
+		return str(raw.get("description") or raw.get("message") or raw.get("error_description") or "Операцію відхилено терміналом.")
+	if error_text:
+		return error_text
+	return str(raw.get("description") or raw.get("message") or raw.get("error_description") or "Термінал ще не повернув остаточний результат.")
+
+
 def _ensure_terminal_transaction(attempt, terminal: str, operation_id: str, operation: str):
 	existing = frappe.db.get_value("Terminal Transaction", {"operation_id": operation_id}, "name")
 	if existing:
@@ -1502,6 +1659,15 @@ def create_draft_invoice(pos_session_token: str, order: str) -> dict:
 	doc = _owned_order(session, order)
 	if doc.draft_invoice:
 		si = frappe.get_doc("Sales Invoice", doc.draft_invoice)
+		contact_details = customer_transaction_details(doc.customer)
+		changed = False
+		for field, value in contact_details.items():
+			if value and not si.get(field):
+				si.set(field, value)
+				changed = True
+		if changed:
+			si.save(ignore_permissions=True)
+			frappe.db.commit()
 		return {"name": si.name, "grand_total": si.grand_total, "docstatus": si.docstatus, "order": doc.name}
 	if doc.status != "Building" or doc.order_type != "Sale":
 		frappe.throw(_("Рахунок можна створити лише з активного чека продажу"))
@@ -1546,6 +1712,7 @@ def create_draft_invoice(pos_session_token: str, order: str) -> dict:
 			"pos_profile": desk.pos_profile,
 			"remarks": _("Створено з вікна касира {0}. Товар не видано, склад не списано.").format(doc.name),
 			"items": invoice_items,
+			**customer_transaction_details(doc.customer),
 		}
 	)
 	si.set_missing_values()
@@ -2035,6 +2202,7 @@ def checkout_start(pos_session_token: str, order: str, payments, idem_key: str) 
 		frappe.throw(_("Вкажіть спосіб оплати"))
 	desk = frappe.get_doc("POS Cash Desk", doc.cash_desk)
 	allowed_payment_modes = profile_payment_modes(desk.pos_profile)
+	policy = _payment_account_policy(session, desk)
 	return_methods = {}
 	if doc.order_type == "Return":
 		original = frappe.get_doc("POS Order", doc.return_against)
@@ -2072,6 +2240,14 @@ def checkout_start(pos_session_token: str, order: str, payments, idem_key: str) 
 				"currency": method["currency"],
 			}
 		)
+		account_info = _payment_accounts(desk, method, policy)
+		requested_account = (row.get("payment_account") or "").strip()
+		if requested_account and requested_account not in account_info["accounts"]:
+			frappe.throw(_("Рахунок {0} не дозволений для способу оплати {1}").format(requested_account, method["mode_of_payment"]))
+		if requested_account and not account_info["can_select"] and requested_account != account_info["default_account"]:
+			frappe.throw(_("Для цього працівника вибір рахунку обмежено").format())
+		row["payment_account"] = requested_account or account_info["default_account"]
+		row["use_terminal"] = int(bool(row.get("use_terminal") or method["requires_terminal"]))
 		if method["mode_of_payment"] not in allowed_payment_modes:
 			frappe.throw(
 				_("Спосіб оплати {0} не дозволений у POS Profile {1}").format(
@@ -2082,8 +2258,9 @@ def checkout_start(pos_session_token: str, order: str, payments, idem_key: str) 
 			frappe.throw(_("Для способу оплати {0} потрібен інтегрований платіжний термінал").format(method["payment_means"]))
 	if abs(sum(frappe.utils.flt(row.get("amount")) for row in payment_rows) - doc.grand_total) > 0.01:
 		frappe.throw(_("Сума оплат має дорівнювати сумі чека"))
-	if doc.fiscal_mode == "Non Fiscal" and len(payment_rows) > 1:
-		frappe.throw(_("Змішана оплата доступна лише для фіскального продажу"))
+	doc.fiscal_mode = _resolve_fiscal_mode(doc, payment_rows, desk)
+	if doc.fiscal_mode == "Fiscal" and not desk.prro_cash_register:
+		frappe.throw(_("Для вибраного рахунку потрібна фіскалізація, але на касі не налаштовано ПРРО"))
 	if doc.order_type == "Return":
 		_validate_return_payments(doc, payment_rows)
 		cash_refund = sum(frappe.utils.flt(row.get("amount")) for row in payment_rows if row.get("kind") == "Cash")
@@ -2106,7 +2283,7 @@ def checkout_start(pos_session_token: str, order: str, payments, idem_key: str) 
 		row["change_amount"] = max(0, tendered - row["amount"]) if doc.order_type != "Return" else 0
 		attempt = _attempt(doc, row, number, idem_key)
 		status = "Confirmed"
-		if row["kind"] == "Card":
+		if row["kind"] == "Card" and row.get("use_terminal"):
 			if not desk.terminal:
 				frappe.throw(_("Для цієї каси не налаштовано банківський термінал"))
 			attempt.status = "Sent"
@@ -2165,7 +2342,7 @@ def card_status(pos_session_token: str, attempt: str) -> dict:
 	if order.cash_desk != session["cash_desk"]:
 		frappe.throw(_("Оплата належить іншій касі"), frappe.PermissionError)
 	if doc.status not in {"Unknown", "Timeout", "Sent"}:
-		return {"attempt": doc.as_dict(), "order": order.as_dict()}
+		return {"attempt": doc.as_dict(), "order": order.as_dict(), "reason": _terminal_reason("declined" if doc.status == "Declined" else "unknown", error_text=doc.error_text)}
 	txn = frappe.get_doc("Terminal Transaction", doc.terminal_transaction) if doc.terminal_transaction else None
 	operation_id = txn.operation_id if txn else doc.idem_key
 	terminal = frappe.db.get_value("POS Cash Desk", order.cash_desk, "terminal")
@@ -2200,7 +2377,18 @@ def card_status(pos_session_token: str, attempt: str) -> dict:
 	else:
 		frappe.db.commit()
 		order_payload = order.as_dict()
-	return {"attempt": doc.as_dict(), "order": order_payload}
+	terminal_raw = {}
+	if txn and txn.response_json:
+		try:
+			terminal_raw = frappe.parse_json(txn.response_json) or {}
+		except Exception:
+			terminal_raw = {}
+	return {
+		"attempt": doc.as_dict(),
+		"order": order_payload,
+		"reason": _terminal_reason(result.status, terminal_raw, doc.error_text),
+		"terminal_status": result.status,
+	}
 
 
 @frappe.whitelist()

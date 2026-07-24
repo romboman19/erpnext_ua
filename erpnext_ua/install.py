@@ -416,6 +416,17 @@ def ensure_accounting_setup():
 					"insert_after": "ua_legal_source",
 				},
 			],
+			"Bank Account": [
+				{
+					"fieldname": "ua_fiscalization_policy",
+					"label": "Політика фіскалізації POS",
+					"fieldtype": "Select",
+					"options": "\nУспадковувати\nОбов’язково\nЗаборонено",
+					"default": "Успадковувати",
+					"insert_after": "bank_account_no",
+					"description": "Для цього банківського рахунку: фіскалізувати всі надходження, не фіскалізувати або успадковувати режим чека.",
+				},
+			],
 		},
 		update=True,
 	)
@@ -596,6 +607,39 @@ def ensure_pos_custom_fields():
 				{"fieldname": "ua_requires_terminal", "label": "Потрібен інтегрований платіжний термінал", "fieldtype": "Check", "default": "0", "insert_after": "ua_allow_debt"},
 				{"fieldname": "ua_currency", "label": "Валюта каси", "fieldtype": "Link", "options": "Currency", "default": "UAH", "insert_after": "ua_requires_terminal"},
 				{"fieldname": "ua_pos_kind", "label": "Застарілий технічний тип UA POS", "fieldtype": "Select", "options": "\nCash\nCard\nIBAN\nBonus\nInstallment", "hidden": 1, "insert_after": "ua_currency"},
+			],
+			"Mode of Payment Account": [
+				{
+					"fieldname": "ua_fiscalization_policy",
+					"label": "Політика фіскалізації",
+					"fieldtype": "Select",
+					"options": "\nУспадковувати\nОбов’язково\nЗаборонено",
+					"default": "Успадковувати",
+					"insert_after": "default_account",
+					"description": "Для IBAN можна окремо визначити, чи фіскалізувати надходження. Для картки, термінала та готівки діють правила каналу оплати.",
+				},
+			],
+			"Account": [
+				{
+					"fieldname": "ua_fiscalization_policy",
+					"label": "Політика фіскалізації POS",
+					"fieldtype": "Select",
+					"options": "\nУспадковувати\nОбов’язково\nЗаборонено",
+					"default": "Успадковувати",
+					"insert_after": "account_type",
+					"description": "Політика для оплат через цей рахунок. Для IBAN дозволяє окремо вибрати фіскалізацію.",
+				},
+			],
+			"Bank Account": [
+				{
+					"fieldname": "ua_fiscalization_policy",
+					"label": "Політика фіскалізації POS",
+					"fieldtype": "Select",
+					"options": "\nУспадковувати\nОбов’язково\nЗаборонено",
+					"default": "Успадковувати",
+					"insert_after": "bank_account_no",
+					"description": "Для цього банківського рахунку: фіскалізувати всі надходження, не фіскалізувати або успадковувати режим чека.",
+				},
 			],
 			"Item": [
 				{"fieldname": "ua_serial_mode", "label": "UA Serial Mode", "fieldtype": "Select", "options": "\nStrict\nAdvisory\nNone"},

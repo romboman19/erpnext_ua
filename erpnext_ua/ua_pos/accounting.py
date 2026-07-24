@@ -3,11 +3,30 @@ from __future__ import annotations
 import frappe
 from frappe import _
 from frappe.utils import flt
+from frappe.contacts.doctype.address.address import get_default_address
+from frappe.contacts.doctype.contact.contact import get_default_contact
 
 
 def profile_payment_modes(pos_profile: str) -> set[str]:
 	profile = frappe.get_cached_doc("POS Profile", pos_profile)
 	return {row.mode_of_payment for row in profile.payments if row.mode_of_payment}
+
+
+def customer_transaction_details(customer: str) -> dict:
+	"""Resolve the contact fields consumed by invoices and shipment integrations."""
+	meta = frappe.get_meta("Customer")
+	get = lambda field: frappe.db.get_value("Customer", customer, field) if meta.has_field(field) else None
+	contact_person = get_default_contact("Customer", customer)
+	contact = frappe.db.get_value("Contact", contact_person, ["phone", "mobile_no"], as_dict=True) if contact_person else None
+	phone = (contact.mobile_no or contact.phone) if contact else None
+	phone = phone or get("mobile_no") or get("phone")
+	address = get_default_address("Customer", customer)
+	return {
+		"contact_person": contact_person,
+		"contact_mobile": phone,
+		"customer_address": address,
+		"shipping_address_name": address,
+	}
 
 
 def validate_desk_runtime(desk) -> None:
@@ -70,6 +89,7 @@ def make_sales_invoice(order, desk):
 			"ua_pos_employee": order.employee,
 			"items": [_invoice_item(row, is_return=is_return) for row in order.items],
 			"payments": payments,
+			**customer_transaction_details(order.customer),
 		}
 	)
 	# for_validate=True applies missing ERPNext dimensions without replacing the
@@ -96,20 +116,21 @@ def apply_cash_desk_payment_accounts(doc, method=None) -> None:
 	desk = frappe.get_cached_doc("POS Cash Desk", doc.ua_pos_desk)
 	validate_desk_runtime(desk)
 	order = frappe.get_doc("POS Order", doc.ua_pos_order)
-	payment_kinds = {
+	payment_rows = {
 		row.mode_of_payment: row.kind
 		for row in order.payments_plan
 		if row.status == "Confirmed"
 	}
 	for payment in doc.payments:
-		kind = payment_kinds.get(payment.mode_of_payment)
+		kind = payment_rows.get(payment.mode_of_payment)
 		if not kind:
 			frappe.throw(
 				_("Оплата {0} відсутня у підтвердженому плані чека {1}").format(
 					payment.mode_of_payment, order.name
 				)
 			)
-		payment.account = _payment_account(desk, payment.mode_of_payment, kind)
+		requested = next((row.payment_account for row in order.payments_plan if row.status == "Confirmed" and row.mode_of_payment == payment.mode_of_payment), None)
+		payment.account = _payment_account(desk, payment.mode_of_payment, kind, requested)
 
 
 def create_accounted_cash_movement(
@@ -248,7 +269,7 @@ def _payment_row(desk, payment, *, is_return: bool) -> dict:
 	mode_type = frappe.get_cached_value("Mode of Payment", payment.mode_of_payment, "type")
 	if not mode_type:
 		frappe.throw(_("Спосіб оплати {0} вимкнено або не знайдено").format(payment.mode_of_payment))
-	account = _payment_account(desk, payment.mode_of_payment, payment.kind)
+	account = _payment_account(desk, payment.mode_of_payment, payment.kind, payment.get("payment_account"))
 	return {
 		"mode_of_payment": payment.mode_of_payment,
 		"type": mode_type,
@@ -257,8 +278,8 @@ def _payment_row(desk, payment, *, is_return: bool) -> dict:
 	}
 
 
-def _payment_account(desk, mode_of_payment: str, kind: str) -> str:
-	account = (
+def _payment_account(desk, mode_of_payment: str, kind: str, requested_account: str | None = None) -> str:
+	account = requested_account or (
 		desk.cash_account
 		if kind == "Cash"
 		else frappe.db.get_value(

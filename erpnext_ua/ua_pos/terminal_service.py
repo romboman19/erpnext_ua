@@ -9,7 +9,7 @@ from erpnext_ua.ua_pos.adapters.terminal import PrivatPosAdapter, PrivatPOSGatew
 def _settings() -> dict:
 	settings = frappe.get_single("PB POS Settings")
 	return {
-		"gateway_url": (settings.gateway_url or frappe.conf.get("pb_pos_gateway_url") or "").strip(),
+		"base_url": (settings.gateway_url or frappe.conf.get("pb_pos_gateway_url") or "").strip(),
 		"api_key": (
 			settings.get_password("api_key", raise_exception=False) or frappe.conf.get("pb_pos_api_key") or ""
 		).strip(),
@@ -19,7 +19,7 @@ def _settings() -> dict:
 
 def get_adapter() -> PrivatPosAdapter:
 	cfg = _settings()
-	if not cfg["gateway_url"] or not cfg["api_key"]:
+	if not cfg["base_url"] or not cfg["api_key"]:
 		frappe.throw(_("Налаштуйте URL та API-ключ у PB POS Settings"))
 	return PrivatPosAdapter(PrivatPOSGatewayClient(**cfg))
 

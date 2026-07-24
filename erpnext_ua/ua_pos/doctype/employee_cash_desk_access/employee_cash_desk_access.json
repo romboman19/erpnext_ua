@@ -1,10 +1,12 @@
 {
  "doctype":"DocType","name":"Employee Cash Desk Access","module":"UA POS","autoname":"format:{employee}-{cash_desk}",
- "field_order":["employee","cash_desk","access_role","active","valid_from","valid_to"],
+ "field_order":["employee","cash_desk","access_role","allow_payment_account_selection","default_payment_account","active","valid_from","valid_to"],
  "fields":[
   {"fieldname":"employee","fieldtype":"Link","label":"Employee","options":"Employee","reqd":1},
   {"fieldname":"cash_desk","fieldtype":"Link","label":"Cash Desk","options":"POS Cash Desk","reqd":1},
   {"fieldname":"access_role","fieldtype":"Select","label":"Role","options":"Cashier\nSenior Cashier\nManager","default":"Cashier","reqd":1},
+  {"fieldname":"allow_payment_account_selection","fieldtype":"Check","label":"Allow payment account selection","default":"0","description":"Allow this employee to choose among accounts configured for the payment method."},
+  {"fieldname":"default_payment_account","fieldtype":"Link","label":"Fixed payment account","options":"Account","description":"Used when account selection is not allowed."},
   {"fieldname":"active","fieldtype":"Check","label":"Active","default":"1"},
   {"fieldname":"valid_from","fieldtype":"Date","label":"Valid From"},
   {"fieldname":"valid_to","fieldtype":"Date","label":"Valid To"}

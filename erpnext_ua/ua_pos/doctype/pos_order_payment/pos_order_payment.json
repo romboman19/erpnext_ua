@@ -1,6 +1,6 @@
 {
  "doctype":"DocType","name":"POS Order Payment","module":"UA POS","istable":1,
- "field_order":["mode_of_payment","kind","prro_payment_form","prro_payment_means","prro_payment_code","payment_context","amount","tendered_amount","change_amount","currency","exchange_rate","status","payment_attempt"],
+ "field_order":["mode_of_payment","kind","prro_payment_form","prro_payment_means","prro_payment_code","payment_context","payment_account","use_terminal","amount","tendered_amount","change_amount","currency","exchange_rate","status","payment_attempt"],
  "fields":[
   {"fieldname":"mode_of_payment","fieldtype":"Link","label":"Спосіб оплати ERPNext","options":"Mode of Payment","reqd":1},
   {"fieldname":"kind","fieldtype":"Select","label":"Технічний тип","options":"Cash\nCard\nIBAN\nBonus\nInstallment","reqd":1},
@@ -8,6 +8,8 @@
   {"fieldname":"prro_payment_means","fieldtype":"Data","label":"Засіб оплати у чеку","reqd":1},
   {"fieldname":"prro_payment_code","fieldtype":"Int","label":"Код PAYFORMCD","reqd":1},
   {"fieldname":"payment_context","fieldtype":"Select","label":"Контекст оплати","options":"Звичайна оплата\nПередоплата\nБорг","default":"Звичайна оплата","reqd":1},
+  {"fieldname":"payment_account","fieldtype":"Link","label":"Рахунок оплати","options":"Account"},
+  {"fieldname":"use_terminal","fieldtype":"Check","label":"Use bank terminal connection","default":"0"},
   {"fieldname":"amount","fieldtype":"Currency","label":"Сума","reqd":1},
   {"fieldname":"tendered_amount","fieldtype":"Currency","label":"Отримано від покупця"},
   {"fieldname":"change_amount","fieldtype":"Currency","label":"Решта","read_only":1},
